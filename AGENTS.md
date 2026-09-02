@@ -44,6 +44,8 @@ Node.js + pnpm(版本见 `mise.toml`)、TypeScript strict、Biome(lint+format)�
 - **Hooks**:生命周期事件以安装版本类型为准;钩子内不做重活,重活放异步任务或子进程。
 - **Prompt Hygiene**:永不修改 Pi 的 system prompt;注入指令用对话消息追加,精简、可移除,空闲不注入。
 - **配置与密钥**:配置解析 fail-closed;Token/API Key 绝不写入代码、日志、示例或文档,仅经环境变量或 `chmod 0600` 文件存储,日志一律脱敏。
+- **视觉与 TUI 规范**：所有涉及终端渲染、状态栏、通知与字符排版的改动，必须严格遵循根目录
+`DESIGN.md` 中的 Token 与 8 大章节规范
 
 ## 5. 命令与开发回路
 
