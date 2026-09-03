@@ -4,6 +4,7 @@ import { DEFAULT_CONFIG } from "../src/config.js";
 import { type BorderSlots, shouldInstallEditor } from "../src/editor-border.js";
 import type { SessionUsage } from "../src/segments.js";
 import {
+  addEditorPadding,
   aggregateUsage,
   buildFooterRows,
   type RuntimeDeps,
@@ -315,6 +316,55 @@ describe("aggregateUsage", () => {
   });
 });
 
+describe("addEditorPadding", () => {
+  const lines = [
+    "┌─ top ─┐",
+    "content",
+    "└─ bottom ─┘",
+  ];
+  test("default leaves lines untouched", () => {
+    expect(
+      addEditorPadding(
+        [
+          ...lines,
+        ],
+        "default",
+      ),
+    ).toEqual(lines);
+  });
+  test("compact inserts one blank line after top border only", () => {
+    expect(
+      addEditorPadding(
+        [
+          ...lines,
+        ],
+        "compact",
+      ),
+    ).toEqual([
+      "┌─ top ─┐",
+      "",
+      "content",
+      "└─ bottom ─┘",
+    ]);
+  });
+  test("relaxed inserts blank lines on both sides", () => {
+    expect(
+      addEditorPadding(
+        [
+          ...lines,
+        ],
+        "relaxed",
+      ),
+    ).toEqual([
+      "┌─ top ─┐",
+      "",
+      "content",
+      "",
+      "└─ bottom ─┘",
+    ]);
+  });
+});
+
 // ─── slots 判定(供 shouldInstallEditor 对齐)────────────────────────────────
 
 describe("border slot gating", () => {
@@ -348,7 +398,7 @@ describe("SegmentInputs consumers", () => {
       mcpCount: 0,
       model: undefined,
       modelNames: {},
-      packageEntries: [],
+      nativeStatuses: [],
       skillCount: 0,
       thinkingLevel: null,
       usage,
@@ -368,7 +418,7 @@ describe("SegmentInputs consumers", () => {
       home: "/tmp",
       mcpCount: 0,
       modelNames: {},
-      packageEntries: [],
+      nativeStatuses: [],
       skillCount: 0,
       thinkingLevel: "off",
       model: {
@@ -413,7 +463,7 @@ describe("SegmentInputs consumers", () => {
       home: "/tmp",
       mcpCount: 0,
       modelNames: {},
-      packageEntries: [],
+      nativeStatuses: [],
       skillCount: 0,
       thinkingLevel: "off",
       model: {
@@ -450,7 +500,7 @@ describe("SegmentInputs consumers", () => {
       home: "/tmp",
       mcpCount: 0,
       modelNames: {},
-      packageEntries: [],
+      nativeStatuses: [],
       skillCount: 0,
       thinkingLevel: "off",
       model: {
@@ -498,7 +548,7 @@ describe("SegmentInputs consumers", () => {
       home: "/tmp",
       mcpCount: 0,
       modelNames: {},
-      packageEntries: [],
+      nativeStatuses: [],
       skillCount: 0,
       thinkingLevel: "off",
       model: {
@@ -527,7 +577,7 @@ describe("SegmentInputs consumers", () => {
       home: "/tmp",
       mcpCount: 0,
       modelNames: {},
-      packageEntries: [],
+      nativeStatuses: [],
       skillCount: 0,
       thinkingLevel: "off",
       model: {
@@ -560,7 +610,7 @@ describe("SegmentInputs consumers", () => {
       mcpCount: 0,
       model: undefined,
       modelNames: {},
-      packageEntries: [],
+      nativeStatuses: [],
       skillCount: 0,
       thinkingLevel: null,
       usage: {

@@ -361,9 +361,10 @@ describe("openGlimpsePanel", () => {
     expect(html).toContain('data-tab="sourceTab"');
     expect(html).toContain('id="yaml_source"');
     expect(html).toContain("Insert template");
-    expect(html).toContain("12-parameter reference");
+    expect(html).toContain("13-parameter reference");
     for (const id of [
       "model_name",
+      "model_id",
       "provider",
       "thinking_mode",
       "git_branch",
@@ -373,15 +374,18 @@ describe("openGlimpsePanel", () => {
       "tokens",
       "cost",
       "session_time",
-      "packages",
+      "native_footer",
       "mcp_skills",
     ]) {
       expect(html).toContain(`<code>${id}</code>`);
     }
-    expect(html).toContain("editor_padding: default | relaxed");
+    expect(html).toContain("editor_padding: default | compact | relaxed");
     expect(html).toContain(
       'window.glimpse.send({ action: "save", rawYaml: val("yaml_source") })',
     );
+    // bug02 回归: Cancel/Esc 走正式关闭协议, 不再发送非法 null 消息
+    expect(html).not.toContain("send(null)");
+    expect(html.match(/window\.glimpse\.close\(\)/g)).toHaveLength(2);
   });
 
   test("panel HTML passed to glimpse.prompt contains the form", async () => {

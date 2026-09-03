@@ -62,6 +62,7 @@ thresholds:
 | Parameter | Shows | Omits when |
 | --- | --- | --- |
 | `model_name` | Friendly `models.json` name, then model name/id | No active model |
+| `model_id` | Raw model id | No active model |
 | `provider` | Active provider | No active model |
 | `thinking_mode` | Current thinking level | No level |
 | `git_branch` | Branch and optional dirty/ahead/behind data | Outside Git or Git fails |
@@ -71,10 +72,10 @@ thresholds:
 | `tokens` | Input/output totals | Before the first model response |
 | `cost` | Session USD cost | Cost unavailable |
 | `session_time` | Elapsed session time | Start time unavailable |
-| `packages` | Installed Pi package short names | No packages |
+| `native_footer` | Native footer extension statuses (with indicator lights) | No extension statuses |
 | `mcp_skills` | MCP server and skill counts | Both counts are zero |
 
-`footer_layout` accepts only these 12 ids. Lines are width-safe: `cwd_path` and `packages` compress first, then tail segments are dropped one at a time.
+`footer_layout` accepts only these 13 ids. Lines are width-safe: `cwd_path` and `native_footer` compress first, then tail segments are dropped one at a time.
 
 ## Development
 

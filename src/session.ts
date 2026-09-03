@@ -16,6 +16,7 @@ import {
   type ExtensionContext,
   getAgentDir,
   type KeybindingsManager,
+  type ReadonlyFooterDataProvider,
   type SessionEntry,
   type SessionStartEvent,
 } from "@earendil-works/pi-coding-agent";
@@ -52,8 +53,9 @@ import {
   resolveCwdPath,
   resolveGitBranch,
   resolveMcpSkills,
+  resolveModelId,
   resolveModelName,
-  resolvePackages,
+  resolveNativeFooter,
   resolveProvider,
   resolveSessionTime,
   resolveThinkingMode,
@@ -170,20 +172,6 @@ function readTextFile(path: string): string | null {
   }
 }
 
-/** settings.json packages 数组(坏 JSON / 缺失 → 空) */
-export function packageEntriesFromSettings(settingsRaw: string | null): string[] {
-  if (settingsRaw === null) return [];
-  try {
-    const parsed = JSON.parse(settingsRaw) as {
-      packages?: unknown;
-    };
-    if (!Array.isArray(parsed.packages)) return [];
-    return parsed.packages.filter((e): e is string => typeof e === "string");
-  } catch {
-    return [];
-  }
-}
-
 /** MCP 计数: 项目 <cwd>/.pi/mcp.json + 用户 agent dir/mcp.json(缺失 = 0) */
 export function countMcpFromRaws(
   projectRaw: string | null,
@@ -208,7 +196,7 @@ export interface SegmentInputs {
       }
     | undefined;
   modelNames: Record<string, Record<string, string>>;
-  packageEntries: string[];
+  nativeStatuses: string[];
   skillCount: number;
   thinkingLevel: ThinkingLevel | null;
   usage: SessionUsage;
@@ -220,6 +208,7 @@ export function collectInputs(
   ctx: ExtensionContext,
   runtime: SessionRuntime,
   branchName: string | null,
+  nativeStatuses: readonly string[] = [],
 ): SegmentInputs {
   const agentDir = getAgentDir();
   const settingsRaw = readTextFile(join(agentDir, "settings.json"));
@@ -249,10 +238,12 @@ export function collectInputs(
         }
       : undefined,
     modelNames,
-    packageEntries: packageEntriesFromSettings(settingsRaw),
     skillCount: countSkills(settingsRaw),
     thinkingLevel: pi.getThinkingLevel(),
     usage: aggregateUsage(ctx.sessionManager.getBranch()),
+    nativeStatuses: [
+      ...nativeStatuses,
+    ],
   };
 }
 
@@ -304,8 +295,11 @@ export function renderSegment(
     case "model_name":
       text = resolveModelName(ctx, inputs.modelNames);
       break;
-    case "packages":
-      text = resolvePackages(ctx, inputs.packageEntries, 6);
+    case "model_id":
+      text = resolveModelId(ctx);
+      break;
+    case "native_footer":
+      text = resolveNativeFooter(ctx, inputs.nativeStatuses);
       break;
     case "provider":
       text = resolveProvider(ctx);
@@ -406,17 +400,11 @@ class MiniFooter implements Component {
   private readonly env: RenderEnv;
   private readonly tui: TUI;
   private readonly unsub: () => void;
-  private readonly footerData: {
-    getGitBranch(): string | null;
-    onBranchChange(cb: () => void): () => void;
-  };
+  private readonly footerData: ReadonlyFooterDataProvider;
   constructor(
     tui: TUI,
     private readonly theme: import("@earendil-works/pi-coding-agent").Theme,
-    footerData: {
-      getGitBranch(): string | null;
-      onBranchChange(cb: () => void): () => void;
-    },
+    footerData: ReadonlyFooterDataProvider,
     env: RenderEnv,
   ) {
     this.tui = tui;
@@ -442,6 +430,11 @@ class MiniFooter implements Component {
       this.env.ctx,
       this.env.runtime,
       this.env.branchName,
+      [
+        ...this.footerData.getExtensionStatuses().entries(),
+      ]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([, text]) => text),
     );
     const rows = buildFooterRows(this.env.runtime.config, inputs, width, () =>
       fetchPorcelain(this.env.pi, this.env.runtime, this.env.ctx.cwd),
@@ -455,7 +448,16 @@ export function addEditorPadding(
   lines: string[],
   padding: MinifooterConfig["editor_padding"],
 ): string[] {
-  if (padding !== "relaxed" || lines.length < 3) return lines;
+  if (lines.length < 3) return lines;
+  if (padding === "compact") {
+    // compact: 仅上边框后 1 行, 为 relaxed(上下各 1 行)的 50%
+    return [
+      lines[0] ?? "",
+      "",
+      ...lines.slice(1),
+    ];
+  }
+  if (padding !== "relaxed") return lines;
   return [
     lines[0] ?? "",
     "",

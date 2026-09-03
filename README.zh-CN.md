@@ -60,6 +60,7 @@ thresholds:
 | 参数 | 显示内容 | 省略条件 |
 | --- | --- | --- |
 | `model_name` | `models.json` 友好名称，其次是模型 name/id | 没有活动模型 |
+| `model_id` | 原始模型 ID | 没有活动模型 |
 | `provider` | 当前 provider | 没有活动模型 |
 | `thinking_mode` | 当前 thinking level | 没有 level |
 | `git_branch` | 分支及可选 dirty/ahead/behind 信息 | 不在 Git 仓库或 Git 失败 |
@@ -69,10 +70,10 @@ thresholds:
 | `tokens` | 输入/输出 token 总数 | 首次模型响应前 |
 | `cost` | 本次会话 USD 成本 | 成本未知 |
 | `session_time` | 会话经过时间 | 起始时间未知 |
-| `packages` | 已安装 Pi package 短名称 | 没有 package |
+| `native_footer` | 原生 footer 常驻扩展状态（自带运行指示灯） | 无扩展状态 |
 | `mcp_skills` | MCP server 与 skill 数量 | 两者都为零 |
 
-`footer_layout` 只接受以上 12 个 id。行宽不足时先压缩 `cwd_path` 和 `packages`，再从尾部逐段省略，不会清空整行。
+`footer_layout` 只接受以上 13 个 id。行宽不足时先压缩 `cwd_path` 和 `native_footer`，再从尾部逐段省略，不会清空整行。
 
 ## 开发
 

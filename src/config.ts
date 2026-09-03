@@ -14,6 +14,7 @@ import { parse, stringify } from "yaml";
 /** 12 个参数 id(minifooter-segments 契约, task 2.x 填充渲染器) */
 export const PARAMETER_IDS = [
   "model_name",
+  "model_id",
   "provider",
   "thinking_mode",
   "git_branch",
@@ -23,7 +24,7 @@ export const PARAMETER_IDS = [
   "tokens",
   "cost",
   "session_time",
-  "packages",
+  "native_footer",
   "mcp_skills",
 ] as const;
 
@@ -61,6 +62,7 @@ export const configSchema = Type.Object({
   editor_padding: Type.Optional(
     Type.Union([
       Type.Literal("default"),
+      Type.Literal("compact"),
       Type.Literal("relaxed"),
     ]),
   ),
@@ -128,7 +130,7 @@ export interface MinifooterConfig {
   >;
   cwd_path_mode: "basename" | "relative" | "full";
   density: "compact" | "comfortable" | "spacious";
-  editor_padding: "default" | "relaxed";
+  editor_padding: "default" | "compact" | "relaxed";
   footer_layout: {
     items: ParameterId[];
     separator: "slash" | "dot" | "pipe" | "space";

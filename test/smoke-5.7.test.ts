@@ -34,7 +34,7 @@ function inputs(): SegmentInputs {
     home: "/tmp",
     mcpCount: 0,
     modelNames: {},
-    packageEntries: [],
+    nativeStatuses: [],
     skillCount: 0,
     thinkingLevel: "off",
     model: {

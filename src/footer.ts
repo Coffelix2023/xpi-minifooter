@@ -85,7 +85,7 @@ function renderParts(
 ): string {
   const parts = segments.map((seg) => {
     const text =
-      compressed && (seg.id === "cwd_path" || seg.id === "packages")
+      compressed && (seg.id === "cwd_path" || seg.id === "native_footer")
         ? truncateToWidth(seg.text, Math.max(4, Math.floor(width / 4)), "…")
         : seg.text;
     return seg.colorToken === null
@@ -111,7 +111,7 @@ function fitSegments(
   return truncateToWidth(line, width, "");
 }
 
-/** 拼一行: 先压缩 cwd/packages，再从尾部逐段丢弃，永不溢出。 */
+/** 拼一行: 先压缩 cwd/native_footer，再从尾部逐段丢弃，永不溢出。 */
 export function renderFooterLine(
   segments: readonly FooterSegment[],
   separator: Separator,
@@ -125,7 +125,7 @@ export function renderFooterLine(
   if (nonEmpty.length === 0 || width <= 0) return "";
   const normal = renderParts(nonEmpty, sep, theme, width, false);
   if (visibleWidth(normal) <= width) return normal;
-  // ponytail: only cwd/packages are compressible in v1.
+  // ponytail: only cwd/native_footer are compressible in v1.
   return fitSegments(nonEmpty, sep, theme, width, true);
 }
 

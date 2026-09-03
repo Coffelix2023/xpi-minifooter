@@ -7,6 +7,7 @@ import {
   loadModelNames,
   modelsJsonPath,
   resolveCwdPath,
+  resolveModelId,
   resolveModelName,
   resolveProvider,
   resolveThinkingMode,
@@ -210,6 +211,19 @@ describe("2.2 model_name", () => {
     );
     const second = loadModelNames("/fake/models.json", fakeStat, fakeRead);
     expect(second).toStrictEqual(first);
+  });
+});
+
+describe("2.2b model_id", () => {
+  test("shows raw model id; no model → null", () => {
+    expect(resolveModelId(seg())).toBe("gpt-5.6-luna");
+    expect(
+      resolveModelId(
+        seg({
+          model: undefined,
+        }),
+      ),
+    ).toBeNull();
   });
 });
 

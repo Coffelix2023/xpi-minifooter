@@ -3,7 +3,6 @@ import {
   contextLevel,
   countMcpServers,
   countSkills,
-  packageShortName,
   parseGitStatusPorcelain,
   resetGitCache,
   resolveContextBar,
@@ -12,7 +11,7 @@ import {
   resolveCwdPath,
   resolveGitBranch,
   resolveMcpSkills,
-  resolvePackages,
+  resolveNativeFooter,
   resolveSessionTime,
   resolveTokens,
   type SegmentContext,
@@ -220,29 +219,20 @@ describe("2.7 usage segments", () => {
   });
 });
 
-// ─── 2.8 packages / mcp_skills ──────────────────────────────────────────────
+// ─── 2.8 native_footer / mcp_skills ─────────────────────────────────────────
 
-describe("2.8 packages & mcp_skills", () => {
-  test("short name strips scheme and path", () => {
-    expect(packageShortName("npm:pi-lens")).toBe("pi-lens");
-    expect(packageShortName("git:github.com/Coffelix2023/xpi-memo")).toBe("xpi-memo");
-    expect(packageShortName("pi-lens")).toBe("pi-lens");
+describe("2.8 native_footer & mcp_skills", () => {
+  test("native_footer joins status texts with indicator glyphs", () => {
+    expect(
+      resolveNativeFooter(noopCtx, [
+        "● rtk:on",
+        "⚡MCP: 3 servers enabled",
+      ]),
+    ).toBe("● rtk:on ⚡MCP: 3 servers enabled");
   });
 
-  test("packages wrap-bounds with +N", () => {
-    const entries = [
-      "npm:pi-lens",
-      "npm:context-mode",
-      "git:github.com/a/b",
-      "npm:d",
-      "npm:e",
-    ];
-    expect(resolvePackages(noopCtx, entries, 3)).toBe("pi-lens, context-mode, b +2");
-    expect(resolvePackages(noopCtx, entries, 5)).not.toContain("+");
-  });
-
-  test("packages omitted when empty", () => {
-    expect(resolvePackages(noopCtx, [], 5)).toBeNull();
+  test("native_footer omitted when empty", () => {
+    expect(resolveNativeFooter(noopCtx, [])).toBeNull();
   });
 
   test("mcp server count from config json", () => {

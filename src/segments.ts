@@ -140,6 +140,14 @@ export function resolveModelName(
   return truncateToWidth(raw, ctx.width);
 }
 
+// ─── 2.2b model_id ──────────────────────────────────────────────────────────
+
+/** model_id 段: 原始模型 ID;无模型 → null */
+export function resolveModelId(ctx: SegmentContext): string | null {
+  if (!ctx.model) return null;
+  return truncateToWidth(ctx.model.id, ctx.width);
+}
+
 // ─── 2.3 provider / thinking_mode ───────────────────────────────────────────
 
 /** provider 段: ctx.model.provider;无模型 → null */
@@ -206,7 +214,6 @@ export interface GitStatusData {
 const RE_UPSTREAM = /\.\.\.?[^\s]*/;
 const RE_AHEAD_BEHIND = /\[(?:ahead (\d+))?(?:,? )?(?:behind (\d+))?\]/;
 const RE_TRACK_SUFFIX = /\[.*$/;
-const RE_SCHEME = /^[a-z]+:/;
 
 export function parseGitStatusPorcelain(out: string): GitStatusData | null {
   let branch: string | null = null;
@@ -391,7 +398,6 @@ export function resolveSessionTime(
   return `${Math.floor(m / 60)}h ${m % 60}m`;
 }
 
-// ─── 2.8 packages / mcp_skills ──────────────────────────────────────────────
 // ─── 4.1 display 装饰(icons / labels, session 层调用)─────────────────────────
 
 /** nerd glyph;show_icons=false 时不加。空串 = 该段无图标 */
@@ -402,8 +408,9 @@ export const SEGMENT_ICONS: Partial<Record<ParameterId, string>> = {
   cwd_path: "\uF07B",
   git_branch: "\uE725",
   mcp_skills: "\uF121",
+  model_id: "\uF2DB",
   model_name: "\uF2DB",
-  packages: "\uF02D",
+  native_footer: "",
   provider: "\uF09C",
   session_time: "\uF017",
   thinking_mode: "\uF0EB",
@@ -460,25 +467,15 @@ export function decorateSegment(
   return prefix === "" ? text : `${prefix} ${text}`;
 }
 
-/** settings.json packages 条目 → 短名(剥 scheme, 取最后一段) */
-export function packageShortName(entry: string): string {
-  const noScheme = entry.replace(RE_SCHEME, "");
-  const parts = noScheme.split("/");
-  return parts[parts.length - 1] ?? noScheme;
-}
+// ─── 2.8 native_footer / mcp_skills ─────────────────────────────────────────
 
-/** packages 段: 逗号连接 + `+N` 截断;空列表 → null */
-export function resolvePackages(
+/** native_footer 段: 原生 footer 常驻状态(各扩展 setStatus 文本, 自带指示灯);空 → null */
+export function resolveNativeFooter(
   ctx: SegmentContext,
-  entries: readonly string[],
-  maxVisible: number,
+  statuses: readonly string[],
 ): string | null {
-  if (entries.length === 0) return null;
-  const names = entries.map(packageShortName);
-  const shown = names.slice(0, maxVisible);
-  const rest = names.length - shown.length;
-  const text = rest > 0 ? `${shown.join(", ")} +${rest}` : shown.join(", ");
-  return truncateToWidth(text, ctx.width);
+  if (statuses.length === 0) return null;
+  return truncateToWidth(statuses.join(" "), ctx.width);
 }
 
 /** 从 mcp 配置 JSON 数 server(mcpServers 键);读失败 → 0 */

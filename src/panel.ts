@@ -151,8 +151,9 @@ const PARAMETER_DESCRIPTIONS: Record<(typeof PARAMETER_IDS)[number], string> = {
   cwd_path: "current working directory",
   git_branch: "branch and worktree status",
   mcp_skills: "MCP server and skill counts",
+  model_id: "active model raw id",
   model_name: "active model friendly name or id",
-  packages: "installed Pi package names",
+  native_footer: "native footer extension status indicators",
   provider: "active model provider",
   session_time: "elapsed session time",
   thinking_mode: "current thinking level",
@@ -182,7 +183,7 @@ export function buildPanelHtml(config: MinifooterConfig): string {
     "lang: zh | en",
     "style: minimalist",
     "density: compact | comfortable | spacious",
-    "editor_padding: default | relaxed",
+    "editor_padding: default | compact | relaxed",
     "git_branch_mode: mini | default | full",
     "cwd_path_mode: basename | relative | full",
     "separator: slash | dot | pipe | space",
@@ -273,6 +274,7 @@ export function buildPanelHtml(config: MinifooterConfig): string {
       config.editor_padding,
       [
         "default",
+        "compact",
         "relaxed",
       ],
     )}</div>
@@ -326,7 +328,7 @@ export function buildPanelHtml(config: MinifooterConfig): string {
     <button id="insertTemplate" class="secondary" type="button">Insert template</button>
   </div>
   <div class="section">
-    <div class="title">12-parameter reference</div>
+    <div class="title">${PARAMETER_IDS.length}-parameter reference</div>
     <div class="ref">${reference}</div>
     <div class="legal">${e(legalValues)}</div>
   </div>
@@ -504,8 +506,8 @@ export function buildPanelHtml(config: MinifooterConfig): string {
       footer_layout: layout.rows || [],
     };
   }
-  el("cancel").addEventListener("click", function () { window.glimpse.send(null); });
-  document.addEventListener("keydown", function (event) { if (event.key === "Escape") window.glimpse.send(null); });
+  el("cancel").addEventListener("click", function () { window.glimpse.close(); });
+  document.addEventListener("keydown", function (event) { if (event.key === "Escape") window.glimpse.close(); });
   renderPreview();
   renderSourcePreview();
 })();
