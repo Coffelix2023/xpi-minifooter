@@ -237,6 +237,11 @@ export function parseConfigWithError(raw: string): ConfigParseResult {
   const merged: MinifooterConfig = {
     ...structuredClone(DEFAULT_CONFIG),
     ...partial,
+    footer_layout:
+      partial.footer_layout?.map((row) => ({
+        items: row.items ?? [],
+        separator: row.separator ?? "slash",
+      })) ?? structuredClone(DEFAULT_CONFIG.footer_layout),
     border_slots: {
       ...DEFAULT_CONFIG.border_slots,
       ...partial.border_slots,

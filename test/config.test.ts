@@ -109,4 +109,11 @@ describe("config schema (task 1.2)", () => {
     expect(config?.density).toBe(DEFAULT_CONFIG.density);
     expect(config?.thresholds.context_warn).toBe(50);
   });
+  test("fills defaults for partial footer layout rows", () => {
+    const config = parseConfig("footer_layout:\n  - items: [cwd_path]");
+    expect(config?.footer_layout[0]?.items).toEqual([
+      "cwd_path",
+    ]);
+    expect(config?.footer_layout[0]?.separator).toBe("slash");
+  });
 });
