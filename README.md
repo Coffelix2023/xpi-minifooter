@@ -9,7 +9,6 @@ A small Nordic-minimalist status footer for the Pi Coding Agent. It runs as a Pi
 Install as a Pi package from npm or Git:
 
 ```bash
-pi install npm:@fx-pi/xpi-minifooter
 pi install git:github.com/Coffelix2023/xpi-minifooter
 ```
 

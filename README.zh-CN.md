@@ -9,7 +9,6 @@
 作为 Pi package 从 npm 或 Git 安装：
 
 ```bash
-pi install npm:@fx-pi/xpi-minifooter
 pi install git:github.com/Coffelix2023/xpi-minifooter
 ```
 
