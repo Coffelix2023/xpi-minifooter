@@ -491,7 +491,11 @@ export function buildPanelHtml(config: MinifooterConfig): string {
   el("footer_layout").addEventListener("input", renderPreview);
   el("yaml_source").addEventListener("input", renderSourcePreview);
   el("insertTemplate").addEventListener("click", function () { el("yaml_source").value = TEMPLATE; renderSourcePreview(); el("yaml_source").focus(); });
+  function closePanel() {
+    if (window.glimpse && typeof window.glimpse.close === "function") window.glimpse.close();
+  }
   el("save").addEventListener("click", function () {
+    if (!window.glimpse || typeof window.glimpse.send !== "function") return;
     if (activeTab === "sourceTab") window.glimpse.send({ action: "save", rawYaml: val("yaml_source") });
     else window.glimpse.send({ action: "save", config: collect() });
   });
@@ -506,8 +510,8 @@ export function buildPanelHtml(config: MinifooterConfig): string {
       footer_layout: layout.rows || [],
     };
   }
-  el("cancel").addEventListener("click", function () { window.glimpse.close(); });
-  document.addEventListener("keydown", function (event) { if (event.key === "Escape") window.glimpse.close(); });
+  el("cancel").addEventListener("click", closePanel);
+  document.addEventListener("keydown", function (event) { if (event.key === "Escape") closePanel(); });
   renderPreview();
   renderSourcePreview();
 })();

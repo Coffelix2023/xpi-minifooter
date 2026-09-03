@@ -152,6 +152,7 @@ describe("wireSession (task 4.1)", () => {
 describe("SessionRuntime.maybeReload", () => {
   function makeRuntime(opts: {
     load?: RuntimeDeps["loadConfig"];
+    loadConfigWithError?: RuntimeDeps["loadConfigWithError"];
     mtimes: (number | null)[];
   }): {
     loadCalls: () => number;
@@ -160,6 +161,7 @@ describe("SessionRuntime.maybeReload", () => {
     let statCalls = 0;
     let loadCalls = 0;
     const runtime = new SessionRuntime({
+      loadConfigWithError: opts.loadConfigWithError,
       configPath: () => "/fake.yml",
       loadConfig: (p) => {
         loadCalls += 1;
@@ -226,6 +228,23 @@ describe("SessionRuntime.maybeReload", () => {
     expect(notifications).toHaveLength(1);
   });
 
+  test("invalid file → reports the parser error", () => {
+    const notifications: string[] = [];
+    const { runtime } = makeRuntime({
+      loadConfigWithError: () => ({
+        error: "invalid YAML at line 3",
+        loaded: null,
+      }),
+      mtimes: [
+        5,
+      ],
+    });
+    runtime.mtime = 4;
+    runtime.maybeReload((m) => notifications.push(m));
+    expect(notifications[0]).toContain("invalid minifooter.yml");
+    expect(notifications[0]).toContain("invalid YAML at line 3");
+    expect(notifications[0]).toContain("keeping last valid config");
+  });
   test("new valid mtime → config swapped", () => {
     const { runtime } = makeRuntime({
       load: () => ({
@@ -332,7 +351,7 @@ describe("addEditorPadding", () => {
       ),
     ).toEqual(lines);
   });
-  test("compact inserts one blank line after top border only", () => {
+  test("compact inserts blank lines on both sides", () => {
     expect(
       addEditorPadding(
         [
@@ -344,6 +363,7 @@ describe("addEditorPadding", () => {
       "┌─ top ─┐",
       "",
       "content",
+      "",
       "└─ bottom ─┘",
     ]);
   });

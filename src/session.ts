@@ -26,6 +26,7 @@ import {
   DEFAULT_CONFIG,
   type LoadedConfig,
   loadConfig,
+  loadConfigWithError,
   type MinifooterConfig,
 } from "./config.js";
 import {
@@ -69,6 +70,10 @@ import {
 export interface RuntimeDeps {
   configPath?: () => string;
   loadConfig?: (path: string) => LoadedConfig | null;
+  loadConfigWithError?: (path: string) => {
+    loaded: LoadedConfig | null;
+    error: string | null;
+  };
   now?: () => number;
   statMtime?: (path: string) => number | null;
 }
@@ -449,24 +454,17 @@ export function addEditorPadding(
   padding: MinifooterConfig["editor_padding"],
 ): string[] {
   if (lines.length < 3) return lines;
-  if (padding === "compact") {
-    // compact: 仅上边框后 1 行, 为 relaxed(上下各 1 行)的 50%
+  if (padding === "compact" || padding === "relaxed") {
     return [
       lines[0] ?? "",
       "",
-      ...lines.slice(1),
+      ...lines.slice(1, -1),
+      "",
+      lines[lines.length - 1] ?? "",
     ];
   }
-  if (padding !== "relaxed") return lines;
-  return [
-    lines[0] ?? "",
-    "",
-    ...lines.slice(1, -1),
-    "",
-    lines[lines.length - 1] ?? "",
-  ];
+  return lines;
 }
-
 /** 编辑器四角边框; 只在槽位启用时安装 */
 class BorderStatusEditor extends CustomEditor {
   private readonly env: RenderEnv;
@@ -550,6 +548,17 @@ export class SessionRuntime {
     this.deps = {
       configPath: deps.configPath ?? configPath,
       loadConfig: deps.loadConfig ?? loadConfig,
+      loadConfigWithError:
+        deps.loadConfigWithError ??
+        (deps.loadConfig
+          ? (path) => {
+              const loaded = deps.loadConfig?.(path) ?? null;
+              return {
+                error: loaded === null ? "invalid configuration" : null,
+                loaded,
+              };
+            }
+          : loadConfigWithError),
       now: deps.now ?? Date.now,
       statMtime: deps.statMtime ?? defaultStatMtime,
     };
@@ -563,12 +572,16 @@ export class SessionRuntime {
     if ((this.mtime !== null && mtime === this.mtime) || mtime === this.lastBadMtime) {
       return false;
     }
-    const loaded = this.deps.loadConfig(path);
-    if (loaded === null) {
+    const result = this.deps.loadConfigWithError(path);
+    if (result.loaded === null) {
       this.lastBadMtime = mtime;
-      notify?.("xpi-minifooter: invalid minifooter.yml — keeping last valid config");
+      const detail = result.error ? `: ${result.error}` : "";
+      notify?.(
+        `xpi-minifooter: invalid minifooter.yml${detail} — keeping last valid config`,
+      );
       return false;
     }
+    const loaded = result.loaded;
     this.config = loaded.config;
     this.mtime = mtime;
     this.lastBadMtime = null;

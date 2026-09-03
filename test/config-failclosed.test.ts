@@ -5,6 +5,7 @@ import { describe, expect, test } from "vitest";
 import {
   DEFAULT_CONFIG,
   loadConfig,
+  loadConfigWithError,
   parseConfig,
   saveConfig,
   serializeConfig,
@@ -25,6 +26,9 @@ describe("fail-closed load (task 1.3)", () => {
     // 用户写坏文件 → loadConfig 返回 null, 调用方保留 last.config
     writeFileSync(path, "lang: [unclosed");
     expect(loadConfig(path)).toBeNull();
+    const result = loadConfigWithError(path);
+    expect(result.loaded).toBeNull();
+    expect(result.error).toContain("line 1");
     expect(last?.config.lang).toBe("en");
   });
 

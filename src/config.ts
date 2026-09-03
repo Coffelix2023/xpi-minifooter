@@ -292,34 +292,52 @@ export function statMtime(path: string): number | null {
   }
 }
 
-/**
- * 从磁盘加载配置。
- * - 文件缺失 → 默认值(mtime null)
- * - 读取/解析/校验失败 → null(调用方 keep-last-valid)
- */
-export function loadConfig(path: string): LoadedConfig | null {
-  let mtime: number | null;
+/** 从磁盘加载配置。文件缺失返回默认值，其他失败由调用方保留上一份。 */
+export interface ConfigLoadResult {
+  error: string | null;
+  loaded: LoadedConfig | null;
+}
+
+/** 从磁盘加载配置并保留可展示的解析错误。 */
+export function loadConfigWithError(path: string): ConfigLoadResult {
+  let mtime: number;
   try {
     mtime = statSync(path).mtimeMs;
   } catch {
     return {
-      config: structuredClone(DEFAULT_CONFIG),
-      mtime: null,
+      error: null,
+      loaded: {
+        config: structuredClone(DEFAULT_CONFIG),
+        mtime: null,
+      },
     };
   }
   let raw: string;
   try {
     raw = readFileSync(path, "utf8");
   } catch {
-    return null;
+    return {
+      error: "unable to read minifooter.yml",
+      loaded: null,
+    };
   }
-  const config = parseConfig(raw);
-  return config === null
-    ? null
+  const parsed = parseConfigWithError(raw);
+  return parsed.config === null
+    ? {
+        error: parsed.error,
+        loaded: null,
+      }
     : {
-        config,
-        mtime,
+        error: null,
+        loaded: {
+          config: parsed.config,
+          mtime,
+        },
       };
+}
+
+export function loadConfig(path: string): LoadedConfig | null {
+  return loadConfigWithError(path).loaded;
 }
 
 /**
