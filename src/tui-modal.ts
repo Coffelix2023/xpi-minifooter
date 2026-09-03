@@ -1,5 +1,5 @@
 /**
- * xpi-minifooter — TUI modal fallback (task 4.3)
+ * xpi-minifooter — TUI modal fallback (task 4.3, 4.8)
  *
  * Glimpse 不可用时的兜底: ctx.ui.custom overlay 居中 modal,
  * margin.bottom >= 4 (DESIGN.md), Esc/Enter/q 关闭。
@@ -12,6 +12,20 @@ import { matchesKey } from "@earendil-works/pi-tui";
 import type { MinifooterConfig } from "./config.js";
 import { footerLayoutToText } from "./panel.js";
 
+const SLOT_ORDER = [
+  "top_left",
+  "top_right",
+  "bottom_left",
+  "bottom_right",
+] as const;
+
+function occupancyHint(slots: MinifooterConfig["border_slots"]): string {
+  const used = SLOT_ORDER.map((key) => slots[key]).filter((id) => id !== "none");
+  return used.length > 0
+    ? `Embedded in border: ${used.join(", ")}. Footer duplicates hidden.`
+    : "No parameters embedded in border.";
+}
+
 /** 当前配置 → 只读 modal 行(纯函数, 可单测) */
 export function buildModalLines(config: MinifooterConfig): string[] {
   const slots = config.border_slots;
@@ -19,9 +33,10 @@ export function buildModalLines(config: MinifooterConfig): string[] {
     "xpi-minifooter",
     "",
     `lang: ${config.lang}  density: ${config.density}  icons: ${config.show_icons ? "on" : "off"}  labels: ${config.show_labels ? "on" : "off"}`,
-    `cwd: ${config.cwd_path_mode}  git: ${config.git_branch_mode}`,
+    `cwd: ${config.cwd_path_mode}  git: ${config.git_branch_mode}  editor_padding: ${config.editor_padding}`,
     `thresholds: warn ${config.thresholds.context_warn} / alert ${config.thresholds.context_alert} / danger ${config.thresholds.context_danger}`,
     `slots: tl ${slots.top_left} · tr ${slots.top_right} · bl ${slots.bottom_left} · br ${slots.bottom_right}`,
+    occupancyHint(slots),
     "",
     "footer_layout:",
     ...footerLayoutToText(config.footer_layout)
@@ -31,7 +46,7 @@ export function buildModalLines(config: MinifooterConfig): string[] {
     "Edit ~/.pi/agent/minifooter.yml to change values.",
     "Changes hot-reload on next render.",
     "",
-    "[Esc/q] close",
+    "[Esc/Enter/q] cancel",
   ];
 }
 

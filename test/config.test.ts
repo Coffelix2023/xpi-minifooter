@@ -51,6 +51,29 @@ describe("config schema (task 1.2)", () => {
     expect(config?.border_slots.top_left).toBe("context_bar");
     expect(config?.footer_layout[0]?.separator).toBe("dot");
   });
+  test("editor padding defaults to default and parses relaxed", () => {
+    expect(parseConfig("lang: en")?.editor_padding).toBe("default");
+    expect(parseConfig("editor_padding: relaxed")?.editor_padding).toBe("relaxed");
+  });
+  test("invalid editor padding returns null", () => {
+    expect(parseConfig("editor_padding: roomy")).toBeNull();
+  });
+
+  test("duplicate border slots return null", () => {
+    expect(
+      parseConfig("border_slots: { top_left: git_branch, top_right: git_branch }"),
+    ).toBeNull();
+  });
+  test("border and footer duplicates remain valid", () => {
+    const config = parseConfig(
+      "border_slots: { top_left: git_branch }\nfooter_layout:\n  - items: [git_branch, cwd_path]",
+    );
+    expect(config?.border_slots.top_left).toBe("git_branch");
+    expect(config?.footer_layout[0]?.items).toEqual([
+      "git_branch",
+      "cwd_path",
+    ]);
+  });
 
   test("invalid yaml returns null", () => {
     expect(parseConfig("lang: [unclosed")).toBeNull();

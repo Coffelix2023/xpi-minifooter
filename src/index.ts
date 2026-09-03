@@ -1,8 +1,57 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { configPath, parseConfig, saveConfig } from "./config.js";
-import { openGlimpsePanel } from "./panel.js";
+import {
+  configPath,
+  type MinifooterConfig,
+  parseConfigWithError,
+  saveConfig,
+} from "./config.js";
+import { openGlimpsePanel, type PanelResult } from "./panel.js";
 import { SessionRuntime, wireSession } from "./session.js";
 import { openTuiModal } from "./tui-modal.js";
+
+export function refreshConfigBeforePanel(
+  runtime: Pick<SessionRuntime, "maybeReload">,
+  notify: (message: string) => void,
+): void {
+  runtime.maybeReload(notify);
+}
+
+interface PanelRuntime {
+  applyConfig(config: MinifooterConfig): void;
+}
+
+interface PanelSaveDeps {
+  path: string;
+  save: typeof saveConfig;
+}
+
+export function applyPanelConfig(
+  runtime: PanelRuntime,
+  result: Exclude<
+    PanelResult,
+    | {
+        outcome: "cancelled";
+      }
+    | {
+        outcome: "unavailable";
+      }
+  >,
+  notify: (message: string) => void,
+  deps: PanelSaveDeps = {
+    path: configPath(),
+    save: saveConfig,
+  },
+): boolean {
+  const raw = "rawYaml" in result ? result.rawYaml : JSON.stringify(result.config);
+  const parsed = parseConfigWithError(raw);
+  if (parsed.config === null) {
+    notify(`xpi-minifooter: ${parsed.error ?? "invalid configuration"}`);
+    return false;
+  }
+  deps.save(deps.path, parsed.config);
+  runtime.applyConfig(parsed.config);
+  return true;
+}
 
 export default function xpiMinifooter(pi: ExtensionAPI): void {
   const runtime = new SessionRuntime();
@@ -11,18 +60,13 @@ export default function xpiMinifooter(pi: ExtensionAPI): void {
   pi.registerCommand("xpi-minifooter", {
     description: "Open the xpi-minifooter config panel",
     handler: async (_args, ctx) => {
+      refreshConfigBeforePanel(runtime, (message) => ctx.ui.notify(message, "warning"));
       const result = await openGlimpsePanel(runtime.config);
       if (result.outcome === "saved") {
-        // Node 端复用校验管线: JSON 是 YAML 子集, fail-closed 一致
-        const valid = parseConfig(JSON.stringify(result.config));
-        if (valid !== null) {
-          saveConfig(configPath(), valid);
-          runtime.applyConfig(valid);
-        }
+        applyPanelConfig(runtime, result, (message) => ctx.ui.notify(message, "error"));
         return;
       }
       if (result.outcome === "unavailable") {
-        // Glimpse 不可用 → TUI modal fallback(task 4.3); 返回 false 表示连 custom 也没有
         const shown = await openTuiModal(ctx, runtime.config);
         if (!shown) {
           ctx.ui.notify(
@@ -31,7 +75,6 @@ export default function xpiMinifooter(pi: ExtensionAPI): void {
           );
         }
       }
-      // cancelled: 不落盘, 无操作
     },
   });
 }

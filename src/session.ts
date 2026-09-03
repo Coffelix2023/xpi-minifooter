@@ -354,9 +354,13 @@ export function buildFooterRows(
   width: number,
   runPorcelain: () => string | null,
 ): FooterRowData[] {
+  const activeBorderIds = new Set(
+    Object.values(config.border_slots).filter((id) => id !== "none"),
+  );
   return config.footer_layout.map((row) => {
     const segments: FooterSegment[] = [];
     for (const id of row.items) {
+      if (activeBorderIds.has(id)) continue;
       const seg = renderSegment(id, config, inputs, width, runPorcelain);
       if (seg !== null) segments.push(seg);
     }
@@ -446,6 +450,21 @@ class MiniFooter implements Component {
   }
 }
 
+/** 在编辑器上下边框与内容之间插入可选的垂直留白 */
+export function addEditorPadding(
+  lines: string[],
+  padding: MinifooterConfig["editor_padding"],
+): string[] {
+  if (padding !== "relaxed" || lines.length < 3) return lines;
+  return [
+    lines[0] ?? "",
+    "",
+    ...lines.slice(1, -1),
+    "",
+    lines[lines.length - 1] ?? "",
+  ];
+}
+
 /** 编辑器四角边框; 只在槽位启用时安装 */
 class BorderStatusEditor extends CustomEditor {
   private readonly env: RenderEnv;
@@ -491,7 +510,7 @@ class BorderStatusEditor extends CustomEditor {
       thm,
       thinkingColorToken(inputs.thinkingLevel),
     );
-    return lines;
+    return addEditorPadding(lines, this.env.runtime.config.editor_padding);
   }
 }
 

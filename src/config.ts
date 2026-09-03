@@ -58,6 +58,12 @@ export const configSchema = Type.Object({
       Type.Literal("spacious"),
     ]),
   ),
+  editor_padding: Type.Optional(
+    Type.Union([
+      Type.Literal("default"),
+      Type.Literal("relaxed"),
+    ]),
+  ),
   footer_layout: Type.Optional(
     Type.Array(
       Type.Object({
@@ -122,6 +128,7 @@ export interface MinifooterConfig {
   >;
   cwd_path_mode: "basename" | "relative" | "full";
   density: "compact" | "comfortable" | "spacious";
+  editor_padding: "default" | "relaxed";
   footer_layout: {
     items: ParameterId[];
     separator: "slash" | "dot" | "pipe" | "space";
@@ -141,6 +148,7 @@ export interface MinifooterConfig {
 export const DEFAULT_CONFIG: MinifooterConfig = {
   cwd_path_mode: "basename",
   density: "comfortable",
+  editor_padding: "default",
   git_branch_mode: "default",
   lang: "zh",
   show_icons: true,
@@ -188,17 +196,43 @@ export function configPath(): string {
  * 解析并校验 YAML 文本。
  * 解析失败 / 枚举非法 / 阈值乱序 → null(调用方按 fail-closed 保留上一份)。
  */
-export function parseConfig(raw: string): MinifooterConfig | null {
+export interface ConfigParseResult {
+  config: MinifooterConfig | null;
+  error: string | null;
+}
+
+/** 解析配置并返回可展示的非敏感错误信息。 */
+export function parseConfigWithError(raw: string): ConfigParseResult {
   let data: unknown;
   try {
     data = parse(raw);
-  } catch {
-    return null;
+  } catch (error) {
+    const line =
+      typeof error === "object" &&
+      error !== null &&
+      "linePos" in error &&
+      Array.isArray(error.linePos) &&
+      typeof error.linePos[0] === "object" &&
+      error.linePos[0] !== null &&
+      "line" in error.linePos[0]
+        ? error.linePos[0].line
+        : null;
+    return {
+      config: null,
+      error: line ? `invalid YAML at line ${line}` : "invalid YAML",
+    };
   }
-  if (data === null || typeof data !== "object") return null;
+  if (data === null || typeof data !== "object")
+    return {
+      config: null,
+      error: "configuration must be an object",
+    };
   const validator = Compile(configSchema);
-  if (!validator.Check(data)) return null;
-  // 浅合并: 文件子集 + 代码默认值(schema 全部字段 Optional, 未写的 key 用默认)
+  if (!validator.Check(data))
+    return {
+      config: null,
+      error: "invalid configuration values",
+    };
   const partial = data as Partial<MinifooterConfig>;
   const merged: MinifooterConfig = {
     ...structuredClone(DEFAULT_CONFIG),
@@ -212,11 +246,26 @@ export function parseConfig(raw: string): MinifooterConfig | null {
       ...partial.thresholds,
     },
   };
-  // 阈值必须严格递增: warn < alert < danger
+  const borderIds = Object.values(merged.border_slots).filter((id) => id !== "none");
+  if (new Set(borderIds).size !== borderIds.length)
+    return {
+      config: null,
+      error: "duplicate border slot parameter",
+    };
   const t = merged.thresholds;
   if (!(t.context_warn < t.context_alert && t.context_alert < t.context_danger))
-    return null;
-  return merged;
+    return {
+      config: null,
+      error: "context thresholds must be ordered",
+    };
+  return {
+    config: merged,
+    error: null,
+  };
+}
+
+export function parseConfig(raw: string): MinifooterConfig | null {
+  return parseConfigWithError(raw).config;
 }
 
 export interface LoadedConfig {

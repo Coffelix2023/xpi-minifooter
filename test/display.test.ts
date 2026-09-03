@@ -350,6 +350,51 @@ describe("3.2 fitBorder / shouldInstallEditor", () => {
     const line = renderBorderLine("model", "think", 24, fakeTheme, "thinkingHigh");
     expect(line).toContain("[thinkingHigh:─]");
   });
+  describe("3.5 editor padding", () => {
+    test("default padding keeps native rows", async () => {
+      const { addEditorPadding } = await import("../src/session.js");
+      const lines = [
+        "top",
+        "content",
+        "bottom",
+      ];
+      expect(addEditorPadding(lines, "default")).toEqual(lines);
+    });
+    test("relaxed padding inserts blank rows inside borders", async () => {
+      const { addEditorPadding } = await import("../src/session.js");
+      expect(
+        addEditorPadding(
+          [
+            "top",
+            "content",
+            "bottom",
+          ],
+          "relaxed",
+        ),
+      ).toEqual([
+        "top",
+        "",
+        "content",
+        "",
+        "bottom",
+      ]);
+    });
+    test("relaxed padding does not pad an empty editor", async () => {
+      const { addEditorPadding } = await import("../src/session.js");
+      expect(
+        addEditorPadding(
+          [
+            "top",
+            "bottom",
+          ],
+          "relaxed",
+        ),
+      ).toEqual([
+        "top",
+        "bottom",
+      ]);
+    });
+  });
 
   describe("3.3 theme tokens", () => {
     test("thinking level → token mapping", () => {

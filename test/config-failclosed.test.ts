@@ -58,7 +58,7 @@ describe("canonical save (task 1.4)", () => {
   test("round-trip: save then load returns same values", () => {
     const path = tmpFile();
     const parsed = parseConfig(
-      "lang: en\ndensity: compact\nthresholds: { context_warn: 40, context_alert: 70, context_danger: 90 }",
+      "lang: en\ndensity: compact\neditor_padding: relaxed\nthresholds: { context_warn: 40, context_alert: 70, context_danger: 90 }",
     );
     if (parsed === null) throw new Error("fixture must parse");
     saveConfig(path, parsed);

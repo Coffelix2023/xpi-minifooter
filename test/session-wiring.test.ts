@@ -396,6 +396,127 @@ describe("SegmentInputs consumers", () => {
     ]);
   });
 
+  test("border-selected parameters are omitted from footer rows", () => {
+    const config = fakeConfig({
+      border_slots: {
+        bottom_left: "none",
+        bottom_right: "none",
+        top_left: "git_branch",
+        top_right: "none",
+      },
+    });
+    const inputs: SegmentInputs = {
+      branchName: "main",
+      contextPct: null,
+      cwd: "/tmp/project",
+      elapsedSeconds: 12,
+      home: "/tmp",
+      mcpCount: 0,
+      modelNames: {},
+      packageEntries: [],
+      skillCount: 0,
+      thinkingLevel: "off",
+      model: {
+        id: "gpt-test",
+        name: "gpt-test",
+        provider: "test",
+      },
+      usage: {
+        costTotal: null,
+        hasTurn: false,
+        inputTokens: 0,
+        outputTokens: 0,
+      },
+    };
+    const rows = buildFooterRows(config, inputs, 120, () => null);
+    expect(rows[0]?.segments.map((segment) => segment.id)).not.toContain("git_branch");
+    expect(rows[0]?.segments.map((segment) => segment.id)).toContain("cwd_path");
+  });
+
+  test("all four border slots suppress matching footer parameters", () => {
+    const config = fakeConfig({
+      border_slots: {
+        bottom_left: "cwd_path",
+        bottom_right: "thinking_mode",
+        top_left: "git_branch",
+        top_right: "model_name",
+      },
+    });
+    const inputs: SegmentInputs = {
+      branchName: "main",
+      contextPct: null,
+      cwd: "/tmp/project",
+      elapsedSeconds: 12,
+      home: "/tmp",
+      mcpCount: 0,
+      modelNames: {},
+      packageEntries: [],
+      skillCount: 0,
+      thinkingLevel: "off",
+      model: {
+        id: "gpt-test",
+        name: "gpt-test",
+        provider: "test",
+      },
+      usage: {
+        costTotal: null,
+        hasTurn: false,
+        inputTokens: 0,
+        outputTokens: 0,
+      },
+    };
+    const occupied = buildFooterRows(config, inputs, 120, () => null);
+    expect(occupied[0]?.segments.map((segment) => segment.id)).toEqual([]);
+    const restored = buildFooterRows(
+      fakeConfig({
+        border_slots: {
+          bottom_left: "none",
+          bottom_right: "none",
+          top_left: "none",
+          top_right: "none",
+        },
+      }),
+      inputs,
+      120,
+      () => null,
+    );
+    expect(restored[0]?.segments.map((segment) => segment.id)).toEqual([
+      "git_branch",
+      "cwd_path",
+      "model_name",
+      "thinking_mode",
+    ]);
+  });
+
+  test("none border slots restore footer parameters", () => {
+    const config = fakeConfig();
+    const inputs: SegmentInputs = {
+      branchName: "main",
+      contextPct: null,
+      cwd: "/tmp/project",
+      elapsedSeconds: 12,
+      home: "/tmp",
+      mcpCount: 0,
+      modelNames: {},
+      packageEntries: [],
+      skillCount: 0,
+      thinkingLevel: "off",
+      model: {
+        id: "gpt-test",
+        name: "gpt-test",
+        provider: "test",
+      },
+      usage: {
+        costTotal: null,
+        hasTurn: false,
+        inputTokens: 0,
+        outputTokens: 0,
+      },
+    };
+    const rows = buildFooterRows(config, inputs, 120, () => null);
+    expect(rows[0]?.segments.map((segment) => segment.id)).toContain("git_branch");
+  });
+
   test("tokens render after a real assistant turn", () => {
     const config = fakeConfig();
     const inputs: SegmentInputs = {
