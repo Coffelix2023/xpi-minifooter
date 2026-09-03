@@ -157,9 +157,18 @@ export const DEFAULT_CONFIG: MinifooterConfig = {
       separator: "slash",
       items: [
         "git_branch",
-        "provider",
+        "cwd_path",
+        "model_name",
+        "thinking_mode",
+      ],
+    },
+    {
+      separator: "slash",
+      items: [
         "context_bar",
+        "tokens",
         "cost",
+        "session_time",
       ],
     },
   ],

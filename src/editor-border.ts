@@ -4,7 +4,7 @@
  * fitBorder: 复用官方 border-status-editor 算法(先截 right, 再截 left, 最小 gap 3)。
  * shouldInstallEditor: 全部槽位 none/空 → 不接管编辑器。
  */
-import type { Theme } from "@earendil-works/pi-coding-agent";
+import type { Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 export type BorderSlotId = "top_left" | "top_right" | "bottom_left" | "bottom_right";
@@ -20,8 +20,8 @@ export function fitBorder(
   if (width <= 0) return "";
   if (width === 1) return border("─");
 
-  let leftText = left;
-  let rightText = right;
+  let leftText = left.trim() === "" ? "" : ` ${left} `;
+  let rightText = right.trim() === "" ? "" : ` ${right} `;
   const fixedWidth = 2;
   const minimumGap = 3;
 
@@ -75,8 +75,9 @@ export function renderBorderLine(
   right: string,
   width: number,
   theme: Theme,
+  colorToken: ThemeColor = "borderMuted",
 ): string {
-  const border = (text: string) => theme.fg("borderMuted", text);
+  const border = (text: string) => theme.fg(colorToken, text);
   if (left.trim() === "" && right.trim() === "") return plainBorder(width, border);
   return fitBorder(left, right, width, border);
 }

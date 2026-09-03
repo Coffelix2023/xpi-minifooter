@@ -2,100 +2,88 @@
 
 **English**: [README.md](./README.md)
 
-> Pi Coding Agent 的轻量、低干扰底部状态栏扩展（`pi-extension` / `pi-package`）。
+面向 Pi Coding Agent 的北欧极简状态栏扩展。它运行在 Pi 主进程内，使用 Pi 原生 UI，不接管终端，不需要构建产物。
 
-> 无构建步骤、直接加载 TypeScript 源码、严格质量门禁。
+## 安装
 
-[快速开始](#快速开始) · [命令列表](#命令列表) · [开发命令](#开发命令) · [目录结构](#目录结构) · [设计规范](#设计规范)
-
----
-
-## 项目简介
-
-**`@fx-pi/xpi-minifooter`** 是一个运行在 Pi 主进程内的 Pi Coding Agent 扩展。它为终端交互会话提供紧凑、低干扰的状态栏 (Footer) 与诊断信息展示。
-
-设计要点：
-
-- **无构建步骤**：Pi 直接加载 `./src/index.ts` TS 源码，不提交编译产物（`dist/` 或 bundle）。
-- **Pi 原生 UI**：使用 `ctx.ui.*` 与 `@earendil-works/pi-tui` 进行渲染，绝不劫持终端或引入竞争性终端库。
-- **零重度运行时依赖**：依赖宿主提供的 API 与严格类型定义（`@sinclair/typebox`、TypeScript strict）。
-- **严格质量门禁**：TypeScript strict + Biome + Vitest，任何修改必须三绿通过。
-
-## 技术栈
-
-- [Node.js](https://nodejs.org/) + [pnpm](https://pnpm.io/)，版本锁定在 [`mise.toml`](./mise.toml)
-- [Pi Coding Agent API](https://github.com/earendil-works/pi-coding-agent) (`@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`)
-- TypeScript strict（`target: ES2024`，`module: NodeNext`）
-- [Biome](https://biomejs.dev/)（lint + format）
-- [Vitest](https://vitest.dev/)（测试运行器）
-
-## 快速开始
-
-### 环境准备
-
-使用 [mise](https://mise.jdx.dev/) 安装锁定版本的 Node.js 与 pnpm：
+作为 Pi package 从 npm 或 Git 安装：
 
 ```bash
-mise install
+pi install npm:@fx-pi/xpi-minifooter
+pi install git:github.com/Coffelix2023/xpi-minifooter
 ```
 
-### 安装依赖
-
-```bash
-pnpm install
-```
-
-### 冒烟测试
-
-直接将扩展加载到 Pi 中进行快速测试：
-
-```bash
-pi -e ./src/index.ts
-```
-
-### 本地日常开发
-
-软链到本地 Pi 扩展目录以进行实时测试：
+本地开发可软链到扩展目录，然后在 Pi 中热载：
 
 ```bash
 ln -s "$(pwd)" ~/.pi/agent/extensions/xpi-minifooter
+# 在 Pi 中执行：
+/reload
 ```
 
-在运行中的 Pi 会话中，输入 `/reload` 即可热载本扩展。
+## 使用
 
-## 命令列表
+扩展在会话开始时加载 footer。执行 `/xpi-minifooter` 打开配置面板。可用时使用 Glimpse；不可用时降级为居中的 Pi TUI modal。保存立即生效，取消不会修改配置。若其他扩展已经拥有编辑器，请保持所有 `border_slots` 为 `none`。
 
-| 命令 | 说明 |
-| :--- | :--- |
-| `/xpi-minifooter` | 显示扩展状态与已加载版本提示 |
+配置文件为 `~/.pi/agent/minifooter.yml`，外部修改会在下一次 footer 渲染时热加载：
 
-## 开发命令
+```yaml
+# 界面语言与间距。
+lang: zh                    # zh | en
+style: minimalist
+density: comfortable       # compact | comfortable | spacious
+show_icons: true
+show_labels: false
 
-| 命令 | 说明 |
-| :--- | :--- |
-| `pnpm typecheck` | `tsc --noEmit`，严格类型检查 |
-| `pnpm -w run lint` | Biome 全仓代码与格式检查 |
-| `pnpm test` | Vitest 测试运行器 (`vitest run --passWithNoTests`) |
+# 可选编辑器边框内容。none 表示保留 Pi 原生编辑器。
+border_slots:
+  top_left: none
+  top_right: none
+  bottom_left: none
+  bottom_right: none
 
-提交前三条门禁（`typecheck`、`lint`、`test`）必须全部通过。
+# 按顺序渲染多行。分隔符：slash、dot、pipe、space。
+footer_layout:
+  - separator: slash
+    items: [git_branch, cwd_path, model_name, thinking_mode]
+  - separator: slash
+    items: [context_bar, tokens, cost, session_time]
 
-## 目录结构
-
+# Context 警示阈值，单位为百分比。
+thresholds:
+  context_warn: 50
+  context_alert: 75
+  context_danger: 80
 ```
-.
-├── mise.toml / package.json / biome.jsonc / tsconfig.json / pnpm-workspace.yaml
-├── AGENTS.md / CONTEXT.md / DESIGN.md
-├── docs/                      # Git 工作流与仓库约束
-└── src/
-    └── index.ts               # 扩展入口 (register 函数)
+
+## 参数
+
+| 参数 | 显示内容 | 省略条件 |
+| --- | --- | --- |
+| `model_name` | `models.json` 友好名称，其次是模型 name/id | 没有活动模型 |
+| `provider` | 当前 provider | 没有活动模型 |
+| `thinking_mode` | 当前 thinking level | 没有 level |
+| `git_branch` | 分支及可选 dirty/ahead/behind 信息 | 不在 Git 仓库或 Git 失败 |
+| `cwd_path` | cwd 的 basename、home 相对路径或完整路径 | cwd 不可用 |
+| `context_bar` | 填充条与百分比 | 窗口未知时显示 `~%` |
+| `context_compact` | 紧凑 context 百分比 | 窗口未知时显示 `~` |
+| `tokens` | 输入/输出 token 总数 | 首次模型响应前 |
+| `cost` | 本次会话 USD 成本 | 成本未知 |
+| `session_time` | 会话经过时间 | 起始时间未知 |
+| `packages` | 已安装 Pi package 短名称 | 没有 package |
+| `mcp_skills` | MCP server 与 skill 数量 | 两者都为零 |
+
+`footer_layout` 只接受以上 12 个 id。行宽不足时先压缩 `cwd_path` 和 `packages`，再从尾部逐段省略，不会清空整行。
+
+## 开发
+
+仓库直接加载 TypeScript，不生成 `dist/`。使用 `mise.toml` 中锁定的工具版本：
+
+```bash
+mise install
+pnpm install
+pnpm typecheck
+pnpm -w run lint
+pnpm test
+pi -e ./src/index.ts
 ```
-
-## 设计规范
-
-本项目遵循 [Google Labs DESIGN.md 规范](https://github.com/google-labs-code/design.md)，并专门为终端 TUI 场景定制。详见 [`DESIGN.md`](./DESIGN.md) 查看终端设计 Token（颜色、等宽字阶、间距网格与组件定义）。
-
-## 约定与约束
-
-- **术语表**：[`CONTEXT.md`](./CONTEXT.md) 定义了本仓库的统一语言，代码、文档与提交中禁止术语漂移。
-- **Git 纪律**：提交/推送/发布前先读 [`docs/GIT-WORKFLOW.md`](./docs/GIT-WORKFLOW.md) 与 [`docs/GITHUB-GUARD.md`](./docs/GITHUB-GUARD.md)。默认不直推 `main`，使用小粒度 Conventional Commits。
-- **Token 安全**：密钥与 Token 绝不写入代码、日志、示例或文档。

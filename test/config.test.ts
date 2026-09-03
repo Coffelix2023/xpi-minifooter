@@ -11,6 +11,26 @@ describe("config schema (task 1.2)", () => {
     expect(result).not.toBeNull();
     expect(result?.mtime).toBeNull();
     expect(result?.config).toEqual(DEFAULT_CONFIG);
+    expect(result?.config.footer_layout).toEqual([
+      {
+        separator: "slash",
+        items: [
+          "git_branch",
+          "cwd_path",
+          "model_name",
+          "thinking_mode",
+        ],
+      },
+      {
+        separator: "slash",
+        items: [
+          "context_bar",
+          "tokens",
+          "cost",
+          "session_time",
+        ],
+      },
+    ]);
   });
 
   test("valid yaml parses into config", () => {

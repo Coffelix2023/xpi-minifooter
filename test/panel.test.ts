@@ -6,6 +6,7 @@ import {
   footerLayoutToText,
   type GlimpseModule,
   openGlimpsePanel,
+  parseFooterLayoutText,
 } from "../src/panel.js";
 
 describe("buildPanelHtml", () => {
@@ -49,8 +50,45 @@ describe("buildPanelHtml", () => {
   test("footerLayoutToText round-trips rows", () => {
     const text = footerLayoutToText(DEFAULT_CONFIG.footer_layout);
     expect(text).toBe(
-      "- separator: slash\n  items: [git_branch, provider, context_bar, cost]",
+      "- separator: slash\n  items: [git_branch, cwd_path, model_name, thinking_mode]\n- separator: slash\n  items: [context_bar, tokens, cost, session_time]",
     );
+  });
+});
+
+describe("footer layout parser", () => {
+  test("accepts indented multi-line rows", () => {
+    expect(
+      parseFooterLayoutText("- separator: slash\n  items: [git_branch, cwd_path]"),
+    ).toEqual({
+      error: null,
+      rows: [
+        {
+          separator: "slash",
+          items: [
+            "git_branch",
+            "cwd_path",
+          ],
+        },
+      ],
+    });
+  });
+
+  test("round-trips serialized rows", () => {
+    const layout = [
+      {
+        separator: "dot" as const,
+        items: [
+          "model_name" as const,
+          "tokens" as const,
+        ],
+      },
+    ];
+    expect(parseFooterLayoutText(footerLayoutToText(layout)).rows).toEqual(layout);
+  });
+
+  test("reports the source line for malformed YAML", () => {
+    const result = parseFooterLayoutText("- separator: slash\n  items: [git_branch");
+    expect(result.error).toContain("line 2");
   });
 });
 

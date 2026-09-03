@@ -11,7 +11,8 @@ describe("buildModalLines (TUI fallback)", () => {
     expect(text).toContain("git: default");
     expect(text).toContain("warn 50 / alert 75 / danger 80");
     expect(text).toContain("tl none · tr none · bl none · br none");
-    expect(text).toContain("items: [git_branch, provider, context_bar, cost]");
+    expect(text).toContain("items: [git_branch, cwd_path, model_name, thinking_mode]");
+    expect(text).toContain("items: [context_bar, tokens, cost, session_time]");
   });
 
   test("mentions the config file path for manual editing", () => {

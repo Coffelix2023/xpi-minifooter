@@ -6,7 +6,7 @@
  * thinking / context 颜色接 Pi theme token(3.3)。
  */
 import type { Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
-import { visibleWidth } from "@earendil-works/pi-tui";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { MinifooterConfig } from "./config.js";
 import type { SegmentContext, ThinkingLevel } from "./segments.js";
 import { contextLevel } from "./segments.js";
@@ -71,13 +71,47 @@ export function thinkingColorToken(level: ThinkingLevel | null): ThemeColor {
 export interface FooterSegment {
   /** 着色 token;null → muted(元数据) */
   colorToken: ThemeColor | null;
+  /** 参数 id;用于溢出时识别可压缩段 */
+  id?: string;
   text: string;
 }
 
-/**
- * 拼一行: 过滤空段, 单一分隔符, 尾行截断到 width。
- * 着色: 段文本先上色再 join(sep), sep 用 muted。
- */
+function renderParts(
+  segments: readonly FooterSegment[],
+  separator: string,
+  theme: Theme,
+  width: number,
+  compressed: boolean,
+): string {
+  const parts = segments.map((seg) => {
+    const text =
+      compressed && (seg.id === "cwd_path" || seg.id === "packages")
+        ? truncateToWidth(seg.text, Math.max(4, Math.floor(width / 4)), "…")
+        : seg.text;
+    return seg.colorToken === null
+      ? theme.fg("muted", text)
+      : theme.fg(seg.colorToken, text);
+  });
+  return parts.join(theme.fg("muted", separator));
+}
+
+function fitSegments(
+  segments: readonly FooterSegment[],
+  separator: string,
+  theme: Theme,
+  width: number,
+  compressed: boolean,
+): string {
+  let kept = segments.filter((seg) => seg.text.trim() !== "");
+  let line = renderParts(kept, separator, theme, width, compressed);
+  while (kept.length > 1 && visibleWidth(line) > width) {
+    kept = kept.slice(0, -1);
+    line = renderParts(kept, separator, theme, width, compressed);
+  }
+  return truncateToWidth(line, width, "");
+}
+
+/** 拼一行: 先压缩 cwd/packages，再从尾部逐段丢弃，永不溢出。 */
 export function renderFooterLine(
   segments: readonly FooterSegment[],
   separator: Separator,
@@ -87,25 +121,12 @@ export function renderFooterLine(
 ): string {
   const sep =
     separator === "space" ? " ".repeat(densityGap(density)) : SEPARATORS[separator];
-  const parts: string[] = [];
-  for (const seg of segments) {
-    if (seg.text.trim() === "") continue;
-    const colored =
-      seg.colorToken === null
-        ? theme.fg("muted", seg.text)
-        : theme.fg(seg.colorToken, seg.text);
-    parts.push(colored);
-  }
-  const sepColored = theme.fg("muted", sep);
-  const line = parts.join(sepColored);
-  const totalWidth = parts.length === 0 ? 0 : visibleWidth(line);
-  if (totalWidth <= width) return line;
-  // 超宽: 逐段从尾部丢弃, 保证不溢出
-  let kept: string[] = parts;
-  while (kept.length > 1 && visibleWidth(kept.join(sepColored)) > width) {
-    kept = kept.slice(0, -1);
-  }
-  return kept.join(sepColored);
+  const nonEmpty = segments.filter((seg) => seg.text.trim() !== "");
+  if (nonEmpty.length === 0 || width <= 0) return "";
+  const normal = renderParts(nonEmpty, sep, theme, width, false);
+  if (visibleWidth(normal) <= width) return normal;
+  // ponytail: only cwd/packages are compressible in v1.
+  return fitSegments(nonEmpty, sep, theme, width, true);
 }
 
 export interface FooterRowData {

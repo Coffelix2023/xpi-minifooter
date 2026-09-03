@@ -5,7 +5,9 @@ import { type BorderSlots, shouldInstallEditor } from "../src/editor-border.js";
 import type { SessionUsage } from "../src/segments.js";
 import {
   aggregateUsage,
+  buildFooterRows,
   type RuntimeDeps,
+  renderSegment,
   type SegmentInputs,
   SessionRuntime,
   wireSession,
@@ -340,7 +342,9 @@ describe("SegmentInputs consumers", () => {
     const inputs: SegmentInputs = {
       branchName: null,
       contextPct: null,
+      cwd: "/tmp/project",
       elapsedSeconds: null,
+      home: "/tmp",
       mcpCount: 0,
       model: undefined,
       modelNames: {},
@@ -350,5 +354,103 @@ describe("SegmentInputs consumers", () => {
       usage,
     };
     expect(inputs.usage.costTotal).toBeNull();
+  });
+
+  test("fresh session omits only unknown usage segments", () => {
+    const config = fakeConfig({
+      show_icons: false,
+    });
+    const inputs: SegmentInputs = {
+      branchName: "main",
+      contextPct: null,
+      cwd: "/tmp/project",
+      elapsedSeconds: 12,
+      home: "/tmp",
+      mcpCount: 0,
+      modelNames: {},
+      packageEntries: [],
+      skillCount: 0,
+      thinkingLevel: "off",
+      model: {
+        id: "gpt-test",
+        name: "gpt-test",
+        provider: "test",
+      },
+      usage: {
+        costTotal: null,
+        hasTurn: false,
+        inputTokens: 0,
+        outputTokens: 0,
+      },
+    };
+    const rows = buildFooterRows(config, inputs, 120, () => null);
+    expect(rows[0]?.segments.map((segment) => segment.text)).toEqual([
+      "main",
+      "project",
+      "gpt-test",
+      "off",
+    ]);
+    expect(rows[1]?.segments.map((segment) => segment.text)).toEqual([
+      "~%",
+      "12s",
+    ]);
+  });
+
+  test("tokens render after a real assistant turn", () => {
+    const config = fakeConfig();
+    const inputs: SegmentInputs = {
+      branchName: "main",
+      contextPct: 50,
+      cwd: "/tmp/project",
+      elapsedSeconds: 12,
+      home: "/tmp",
+      mcpCount: 0,
+      modelNames: {},
+      packageEntries: [],
+      skillCount: 0,
+      thinkingLevel: "off",
+      model: {
+        id: "gpt-test",
+        name: "gpt-test",
+        provider: "test",
+      },
+      usage: {
+        costTotal: null,
+        hasTurn: true,
+        inputTokens: 100,
+        outputTokens: 25,
+      },
+    };
+    expect(renderSegment("tokens", config, inputs, 120, () => null)?.text).toContain(
+      "↑100 ↓25",
+    );
+  });
+
+  test("cwd_path uses populated context", () => {
+    const config = fakeConfig({
+      show_icons: false,
+    });
+    const inputs: SegmentInputs = {
+      branchName: null,
+      contextPct: null,
+      cwd: "/Users/felix/c6x_local/app-prd/xpi-minifooter",
+      elapsedSeconds: null,
+      home: "/Users/felix",
+      mcpCount: 0,
+      model: undefined,
+      modelNames: {},
+      packageEntries: [],
+      skillCount: 0,
+      thinkingLevel: null,
+      usage: {
+        costTotal: null,
+        hasTurn: false,
+        inputTokens: 0,
+        outputTokens: 0,
+      },
+    };
+    expect(renderSegment("cwd_path", config, inputs, 120, () => null)?.text).toBe(
+      "xpi-minifooter",
+    );
   });
 });

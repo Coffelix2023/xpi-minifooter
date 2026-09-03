@@ -2,100 +2,90 @@
 
 **简体中文**: [README.zh-CN.md](./README.zh-CN.md)
 
-> A lightweight, non-intrusive bottom status footer extension for the Pi Coding Agent (`pi-extension` / `pi-package`).
+A small Nordic-minimalist status footer for the Pi Coding Agent. It runs as a Pi extension, uses Pi-native UI, and does not take over the terminal or add a build step.
 
-> No build step. Direct TypeScript source execution. Strict quality gates.
+## Install
 
-[Quickstart](#quickstart) · [Commands](#commands) · [Development](#development) · [Directory structure](#directory-structure) · [Design baseline](#design-baseline)
-
----
-
-## What it is
-
-**`@fx-pi/xpi-minifooter`** is a Pi Coding Agent extension running inside the Pi main process. It provides a compact, low-noise status footer and diagnostics display for terminal sessions.
-
-Design principles:
-
-- **No build step** — Pi loads `./src/index.ts` directly; no compilation artifacts (`dist/` or bundles) are committed.
-- **Pi-native UI** — Uses `ctx.ui.*` and `@earendil-works/pi-tui` for rendering; never hijacks the terminal or installs conflicting terminal frameworks.
-- **Zero heavy runtime dependencies** — Relies on host-provided APIs with strict type safety (`@sinclair/typebox`, TypeScript strict).
-- **Strict quality gates** — TypeScript strict + Biome + Vitest; all three checks must pass before any commit.
-
-## Tech stack
-
-- [Node.js](https://nodejs.org/) + [pnpm](https://pnpm.io/), versions pinned in [`mise.toml`](./mise.toml)
-- [Pi Coding Agent API](https://github.com/earendil-works/pi-coding-agent) (`@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`)
-- TypeScript strict (`target: ES2024`, `module: NodeNext`)
-- [Biome](https://biomejs.dev/) (lint + format)
-- [Vitest](https://vitest.dev/) (test runner)
-
-## Quickstart
-
-### Environment
-
-Install the pinned Node.js and pnpm versions with [mise](https://mise.jdx.dev/):
+Install as a Pi package from npm or Git:
 
 ```bash
-mise install
+pi install npm:@fx-pi/xpi-minifooter
+pi install git:github.com/Coffelix2023/xpi-minifooter
 ```
 
-### Install dependencies
-
-```bash
-pnpm install
-```
-
-### Smoke test
-
-Run a quick test loading the extension directly into Pi:
-
-```bash
-pi -e ./src/index.ts
-```
-
-### Local development
-
-Symlink to your local Pi extensions directory for live testing:
+For local development, symlink the repository and reload Pi:
 
 ```bash
 ln -s "$(pwd)" ~/.pi/agent/extensions/xpi-minifooter
+# In Pi:
+/reload
 ```
 
-Inside a running Pi session, use `/reload` to hot-reload the extension.
+## Use
 
-## Commands
+The footer is loaded on session start. Run `/xpi-minifooter` to open the configuration panel. Glimpse is used when available; otherwise Pi shows a centered TUI modal. Saving applies immediately; cancelling changes nothing. If another extension owns the editor, leave all `border_slots` set to `none`.
 
-| Command | Description |
-| :--- | :--- |
-| `/xpi-minifooter` | Display the extension status and version notification |
+Configuration lives at `~/.pi/agent/minifooter.yml` and reloads on the next footer render:
+
+```yaml
+# UI language and spacing.
+lang: zh                    # zh | en
+style: minimalist
+density: comfortable       # compact | comfortable | spacious
+show_icons: true
+show_labels: false
+
+# Optional editor border content. Use none to keep Pi's native editor.
+border_slots:
+  top_left: none
+  top_right: none
+  bottom_left: none
+  bottom_right: none
+
+# Rows are rendered in order. Supported separators: slash, dot, pipe, space.
+footer_layout:
+  - separator: slash
+    items: [git_branch, cwd_path, model_name, thinking_mode]
+  - separator: slash
+    items: [context_bar, tokens, cost, session_time]
+
+# Context warning steps, in percent.
+thresholds:
+  context_warn: 50
+  context_alert: 75
+  context_danger: 80
+```
+
+> Remove the accidental leading space before `density` if copying this example; it should be `density: comfortable` at the document root.
+
+## Parameters
+
+| Parameter | Shows | Omits when |
+| --- | --- | --- |
+| `model_name` | Friendly `models.json` name, then model name/id | No active model |
+| `provider` | Active provider | No active model |
+| `thinking_mode` | Current thinking level | No level |
+| `git_branch` | Branch and optional dirty/ahead/behind data | Outside Git or Git fails |
+| `cwd_path` | Basename, home-relative, or full cwd | Cwd unavailable |
+| `context_bar` | Filled/empty bar and percentage | Context window unknown shows `~%` |
+| `context_compact` | Compact context percentage | Context window unknown shows `~` |
+| `tokens` | Input/output totals | Before the first model response |
+| `cost` | Session USD cost | Cost unavailable |
+| `session_time` | Elapsed session time | Start time unavailable |
+| `packages` | Installed Pi package short names | No packages |
+| `mcp_skills` | MCP server and skill counts | Both counts are zero |
+
+`footer_layout` accepts only these 12 ids. Lines are width-safe: `cwd_path` and `packages` compress first, then tail segments are dropped one at a time.
 
 ## Development
 
-| Command | Description |
-| :--- | :--- |
-| `pnpm typecheck` | `tsc --noEmit` — strict type check |
-| `pnpm -w run lint` | Biome check across the repository |
-| `pnpm test` | Vitest test runner (`vitest run --passWithNoTests`) |
+This repository loads TypeScript directly; there is no `dist/` build. With the pinned tools from `mise.toml`:
 
-All three gates (`typecheck`, `lint`, `test`) must pass before committing.
-
-## Directory structure
-
+```bash
+mise install
+pnpm install
+pnpm typecheck
+pnpm -w run lint
+pnpm test
+pi -e ./src/index.ts
 ```
-.
-├── mise.toml / package.json / biome.jsonc / tsconfig.json / pnpm-workspace.yaml
-├── AGENTS.md / CONTEXT.md / DESIGN.md
-├── docs/                      # Git workflow and repository guardrails
-└── src/
-    └── index.ts               # Extension entrypoint (register function)
-```
-
-## Design baseline
-
-This project adopts the [Google Labs DESIGN.md format](https://github.com/google-labs-code/design.md) tailored for terminal TUI interfaces. See [`DESIGN.md`](./DESIGN.md) for terminal design tokens (colors, monospace typography, spacing, and component definitions).
-
-## Conventions & constraints
-
-- **Glossary** — [`CONTEXT.md`](./CONTEXT.md) defines the repository's unified terminology; terms must not drift in code, docs, or commits.
-- **Git discipline** — Read [`docs/GIT-WORKFLOW.md`](./docs/GIT-WORKFLOW.md) and [`docs/GITHUB-GUARD.md`](./docs/GITHUB-GUARD.md) before committing or pushing. Do not push to `main` by default; use small, granular Conventional Commits.
-- **Token safety** — Credentials and secret tokens are never written into code, logs, examples, or documentation.

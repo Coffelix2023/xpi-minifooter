@@ -21,8 +21,10 @@ const fakeTheme: Theme = {
   fg: (color, text) => `[${color}:${text}]`,
 } as unknown as Theme;
 
-const RE_GAP = /lefttext─{3,}righttext/;
-
+const plainTheme: Theme = {
+  fg: (_color, text) => text,
+} as unknown as Theme;
+const RE_GAP = /lefttext\s─{3,}\srighttext/;
 const plain = (s: FooterSegment): FooterSegment => ({
   colorToken: null,
   text: s.text,
@@ -149,6 +151,54 @@ describe("3.1 Nordic footer line", () => {
     expect(visibleWidth(line)).toBeLessThanOrEqual(20);
   });
 
+  test("compresses cwd before dropping tail segments", () => {
+    const line = renderFooterLine(
+      [
+        {
+          colorToken: null,
+          id: "git_branch",
+          text: "main",
+        },
+        {
+          colorToken: null,
+          id: "cwd_path",
+          text: "/very/long/project/path",
+        },
+        {
+          colorToken: null,
+          id: "model_name",
+          text: "model",
+        },
+      ],
+      "slash",
+      "comfortable",
+      24,
+      plainTheme,
+    );
+    expect(visibleWidth(line)).toBeLessThanOrEqual(24);
+    expect(line).toContain("main");
+    expect(line).toContain("model");
+    expect(line).toContain("…");
+  });
+
+  test("never discards the entire line when one segment can fit", () => {
+    const line = renderFooterLine(
+      [
+        {
+          colorToken: null,
+          id: "cwd_path",
+          text: "a long cwd path",
+        },
+      ],
+      "slash",
+      "comfortable",
+      5,
+      plainTheme,
+    );
+    expect(line).not.toBe("");
+    expect(visibleWidth(line)).toBeLessThanOrEqual(5);
+  });
+
   test("colorToken applied per segment", () => {
     const line = renderFooterLine(
       [
@@ -215,14 +265,14 @@ describe("3.2 fitBorder / shouldInstallEditor", () => {
 
   test("four corners painted on border line", () => {
     const line = fitBorder("model", "think", 40, id);
-    expect(line.startsWith("─model")).toBe(true);
-    expect(line.endsWith("think─")).toBe(true);
+    expect(line.startsWith("─ model ")).toBe(true);
+    expect(line.endsWith(" think ─")).toBe(true);
     expect(visibleWidth(line)).toBe(40);
   });
 
   test("right slot truncated first when too long", () => {
     const line = fitBorder("aaa", "r".repeat(60), 20, id);
-    expect(line.startsWith("─aaa")).toBe(true);
+    expect(line.startsWith("─ aaa ")).toBe(true);
     expect(visibleWidth(line)).toBe(20);
     // right 侧内容被截掉了大半
     expect(line).not.toContain("r".repeat(60));
@@ -295,22 +345,27 @@ describe("3.2 fitBorder / shouldInstallEditor", () => {
     // fakeTheme 桩: fg 输出 [borderMuted:──…], 检查结构而非宽度
     expect(line).toBe("[borderMuted:────────]");
   });
-});
 
-describe("3.3 theme tokens", () => {
-  test("thinking level → token mapping", () => {
-    expect(thinkingColorToken("off")).toBe("thinkingOff");
-    expect(thinkingColorToken("high")).toBe("thinkingHigh");
-    expect(thinkingColorToken("xhigh")).toBe("thinkingXhigh");
-    expect(thinkingColorToken("max")).toBe("thinkingMax");
-    expect(thinkingColorToken(null)).toBe("thinkingOff");
-    expect(thinkingColorToken("bogus" as never)).toBe("thinkingOff");
+  test("uses the thinking token for border lines", () => {
+    const line = renderBorderLine("model", "think", 24, fakeTheme, "thinkingHigh");
+    expect(line).toContain("[thinkingHigh:─]");
   });
 
-  test("context tiers → tokens", () => {
-    expect(contextColorToken("ok")).toBe("success");
-    expect(contextColorToken("warn")).toBe("warning");
-    expect(contextColorToken("alert")).toBe("error");
-    expect(contextColorToken("danger")).toBe("error");
+  describe("3.3 theme tokens", () => {
+    test("thinking level → token mapping", () => {
+      expect(thinkingColorToken("off")).toBe("thinkingOff");
+      expect(thinkingColorToken("high")).toBe("thinkingHigh");
+      expect(thinkingColorToken("xhigh")).toBe("thinkingXhigh");
+      expect(thinkingColorToken("max")).toBe("thinkingMax");
+      expect(thinkingColorToken(null)).toBe("thinkingOff");
+      expect(thinkingColorToken("bogus" as never)).toBe("thinkingOff");
+    });
+
+    test("context tiers → tokens", () => {
+      expect(contextColorToken("ok")).toBe("success");
+      expect(contextColorToken("warn")).toBe("warning");
+      expect(contextColorToken("alert")).toBe("error");
+      expect(contextColorToken("danger")).toBe("error");
+    });
   });
 });

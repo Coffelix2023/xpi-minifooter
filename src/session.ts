@@ -196,7 +196,9 @@ export function countMcpFromRaws(
 export interface SegmentInputs {
   branchName: string | null;
   contextPct: number | null;
+  cwd: string;
   elapsedSeconds: number | null;
+  home: string;
   mcpCount: number;
   model?:
     | {
@@ -231,8 +233,10 @@ export function collectInputs(
   return {
     branchName,
     contextPct: ctx.getContextUsage()?.percent ?? null,
+    cwd: ctx.cwd,
     elapsedSeconds:
       runtime.startAt === 0 ? null : (Date.now() - runtime.startAt) / 1000,
+    home: process.env.HOME ?? process.env.USERPROFILE ?? "",
     mcpCount: countMcpFromRaws(
       readTextFile(join(ctx.cwd, ".pi", "mcp.json")),
       readTextFile(join(agentDir, "mcp.json")),
@@ -261,8 +265,8 @@ export function renderSegment(
   runPorcelain: () => string | null,
 ): FooterSegment | null {
   const ctx: SegmentContext = {
-    cwd: "",
-    home: "",
+    cwd: inputs.cwd,
+    home: inputs.home,
     model: inputs.model,
     thinkingLevel: inputs.thinkingLevel ?? undefined,
     width,
@@ -325,6 +329,7 @@ export function renderSegment(
   });
   if (decorated === null) return null;
   return {
+    id,
     colorToken: colorTokenFor(id, inputs, config),
     text: decorated,
   };
@@ -477,12 +482,14 @@ class BorderStatusEditor extends CustomEditor {
       color(segs.top_right),
       width,
       thm,
+      thinkingColorToken(inputs.thinkingLevel),
     );
     lines[lines.length - 1] = renderBorderLine(
       color(segs.bottom_left),
       color(segs.bottom_right),
       width,
       thm,
+      thinkingColorToken(inputs.thinkingLevel),
     );
     return lines;
   }

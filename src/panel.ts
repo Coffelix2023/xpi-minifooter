@@ -10,8 +10,11 @@
  */
 import { join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { parse as parseYaml } from "yaml";
 import type { MinifooterConfig } from "./config.js";
 import { PARAMETER_IDS } from "./config.js";
+
+const ERROR_LINE_PATTERN = /line (\d+)/i;
 
 export type PanelResult =
   | {
@@ -68,6 +71,56 @@ export function footerLayoutToText(layout: MinifooterConfig["footer_layout"]): s
   return layout
     .map((row) => `- separator: ${row.separator}\n  items: [${row.items.join(", ")}]`)
     .join("\n");
+}
+
+export interface FooterLayoutParseResult {
+  error: string | null;
+  rows: MinifooterConfig["footer_layout"] | null;
+}
+
+/** 解析面板 textarea 的标准 YAML footer_layout，并保留真实行号。 */
+export function parseFooterLayoutText(raw: string): FooterLayoutParseResult {
+  try {
+    const parsed = parseYaml(raw) as unknown;
+    if (!Array.isArray(parsed))
+      return {
+        error: "footer_layout must be a list",
+        rows: null,
+      };
+    const rows = parsed.map((value, index) => {
+      if (typeof value !== "object" || value === null)
+        throw new Error(`row ${index + 1}: must be an object`);
+      const row = value as {
+        items?: unknown;
+        separator?: unknown;
+      };
+      if (!Array.isArray(row.items))
+        throw new Error(`row ${index + 1}: items must be a list`);
+      if (row.separator !== undefined && typeof row.separator !== "string") {
+        throw new Error(`row ${index + 1}: separator must be text`);
+      }
+      return {
+        items: row.items.filter(
+          (item): item is MinifooterConfig["footer_layout"][number]["items"][number] =>
+            typeof item === "string" &&
+            PARAMETER_IDS.includes(item as (typeof PARAMETER_IDS)[number]),
+        ),
+        separator: (row.separator ??
+          "slash") as MinifooterConfig["footer_layout"][number]["separator"],
+      };
+    });
+    return {
+      rows,
+      error: null,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const line = ERROR_LINE_PATTERN.exec(message)?.[1];
+    return {
+      error: line ? message : `line 1: ${message}`,
+      rows: null,
+    };
+  }
 }
 
 // ─── HTML 生成(DESIGN.md tokens) ────────────────────────────────────────────
@@ -246,15 +299,19 @@ export function buildPanelHtml(config: MinifooterConfig): string {
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i];
       if (line.trim() === "") continue;
-      var m = line.match(/^\\s*-\\s*separator:\\s*(\\S+)/);
-      if (!m) throw new Error("line " + (i + 1) + ': expected "- separator: <sep>"');
-      var row = { separator: m[1], items: [] };
-      var rest = line.slice(line.indexOf(m[1]) + m[1].length);
-      var im = rest.match(/items:\\s*\\[(.*)\\]/);
-      if (im) {
-        row.items = im[1].split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+      var m = line.match(/^\\s*-\\s*separator:\\s*(\\S+)(?:\\s*,\\s*items:\\s*\\[(.*)\\])?\\s*$/);
+      if (m) {
+        var row = { separator: m[1], items: [] };
+        if (m[2] !== undefined) row.items = m[2].split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+        rows.push(row);
+        continue;
       }
-      rows.push(row);
+      var continuation = line.match(/^\\s+items:\\s*\\[(.*)\\]\\s*$/);
+      if (continuation && rows.length > 0) {
+        rows[rows.length - 1].items = continuation[1].split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+        continue;
+      }
+      throw new Error("line " + (i + 1) + ': expected "- separator: <sep>" or indented items');
     }
     return rows;
   }
