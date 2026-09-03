@@ -58,7 +58,7 @@
       //顶级文件目录配置,之后的配置(不在该范围)将不会生效
       "**",
       "!**/node_modules",
-      "!**/.next",
+      "!**/references", //外部参考仓库, 不参与 lint/format
       "!**/dist",
       "!**/build",
       "!**/backend",

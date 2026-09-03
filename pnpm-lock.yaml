@@ -11,6 +11,9 @@ importers:
       '@earendil-works/pi-tui':
         specifier: '*'
         version: 0.84.4
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
     devDependencies:
       '@biomejs/biome':
         specifier: ^2.5.11
