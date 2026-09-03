@@ -1,0 +1,354 @@
+import { describe, expect, test } from "vitest";
+import type { MinifooterConfig } from "../src/config.js";
+import { DEFAULT_CONFIG } from "../src/config.js";
+import { type BorderSlots, shouldInstallEditor } from "../src/editor-border.js";
+import type { SessionUsage } from "../src/segments.js";
+import {
+  aggregateUsage,
+  type RuntimeDeps,
+  type SegmentInputs,
+  SessionRuntime,
+  wireSession,
+} from "../src/session.js";
+
+// ─── mocks ──────────────────────────────────────────────────────────────────
+
+function fakeConfig(overrides: Partial<MinifooterConfig> = {}): MinifooterConfig {
+  return {
+    ...structuredClone(DEFAULT_CONFIG),
+    ...overrides,
+  };
+}
+
+function fakePi() {
+  const footerFactories: unknown[] = [];
+  const editorCalls: unknown[] = [];
+  const handlers = new Map<string, unknown>();
+  const pi = {
+    exec: async () => ({
+      code: 0,
+      killed: false,
+      stderr: "",
+      stdout: "",
+    }),
+    getThinkingLevel: () => "off" as const,
+    on: (event: string, handler: unknown) => {
+      handlers.set(event, handler);
+    },
+    registerCommand: () => {},
+    registerTool: () => {},
+  };
+  const ui = {
+    notify: () => {},
+    setEditorComponent: (factory: unknown) => {
+      editorCalls.push(factory);
+    },
+    setFooter: (factory: unknown) => {
+      footerFactories.push(factory);
+    },
+    theme: {
+      fg: (_t: string, s: string) => s,
+    },
+  };
+  const ctx = {
+    cwd: "/tmp",
+    model: undefined,
+    getContextUsage: () => undefined,
+    sessionManager: {
+      getBranch: () => [],
+    },
+    ui,
+  };
+  return {
+    ctx,
+    editorCalls,
+    footerFactories,
+    handlers,
+    pi,
+    ui,
+  };
+}
+
+function wiredRuntime(config: MinifooterConfig, deps: Partial<RuntimeDeps> = {}) {
+  const runtime = new SessionRuntime(deps);
+  runtime.config = config;
+  const mock = fakePi();
+  wireSession(mock.pi as never, runtime);
+  const startHandler = mock.handlers.get("session_start") as (
+    event: unknown,
+    ctx: unknown,
+  ) => void;
+  startHandler(
+    {
+      reason: "startup",
+      type: "session_start",
+    },
+    mock.ctx,
+  );
+  return {
+    mock,
+    runtime,
+  };
+}
+
+const baseDeps: RuntimeDeps = {
+  configPath: () => "/nonexistent/minifooter.yml",
+  statMtime: () => null,
+};
+
+// ─── 4.1 接线行为 ────────────────────────────────────────────────────────────
+
+describe("wireSession (task 4.1)", () => {
+  test("session_start installs footer", () => {
+    const { mock } = wiredRuntime(fakeConfig(), baseDeps);
+    expect(mock.footerFactories).toHaveLength(1);
+  });
+
+  test("empty border slots never call setEditorComponent", () => {
+    const { mock, runtime } = wiredRuntime(fakeConfig(), baseDeps);
+    expect(mock.editorCalls).toHaveLength(0);
+    expect(runtime.editorInstalled).toBe(false);
+  });
+
+  test("non-empty border slots install editor once", () => {
+    const config = fakeConfig({
+      border_slots: {
+        bottom_left: "cwd_path",
+        bottom_right: "context_compact",
+        top_left: "model_name",
+        top_right: "thinking_mode",
+      },
+    });
+    const { mock, runtime } = wiredRuntime(config, baseDeps);
+    expect(mock.editorCalls).toHaveLength(1);
+    expect(runtime.editorInstalled).toBe(true);
+  });
+
+  test("agent events are subscribed for re-render", () => {
+    const { mock } = wiredRuntime(fakeConfig(), baseDeps);
+    expect(mock.handlers.has("agent_start")).toBe(true);
+    expect(mock.handlers.has("agent_settled")).toBe(true);
+  });
+
+  test("session_shutdown resets runtime state", () => {
+    const { mock, runtime } = wiredRuntime(fakeConfig(), baseDeps);
+    runtime.activeTui = {
+      requestRender: () => {},
+    } as never;
+    runtime.startAt = 123;
+    const shutdown = mock.handlers.get("session_shutdown") as () => void;
+    shutdown();
+    expect(runtime.activeTui).toBeNull();
+    expect(runtime.startAt).toBe(0);
+    expect(runtime.porcelain.raw).toBeNull();
+  });
+});
+
+// ─── mtime 热重载 ────────────────────────────────────────────────────────────
+
+describe("SessionRuntime.maybeReload", () => {
+  function makeRuntime(opts: {
+    load?: RuntimeDeps["loadConfig"];
+    mtimes: (number | null)[];
+  }): {
+    loadCalls: () => number;
+    runtime: SessionRuntime;
+  } {
+    let statCalls = 0;
+    let loadCalls = 0;
+    const runtime = new SessionRuntime({
+      configPath: () => "/fake.yml",
+      loadConfig: (p) => {
+        loadCalls += 1;
+        return opts.load ? opts.load(p) : null;
+      },
+      statMtime: () => {
+        const m = opts.mtimes[Math.min(statCalls, opts.mtimes.length - 1)];
+        statCalls += 1;
+        return m;
+      },
+    });
+    return {
+      loadCalls: () => loadCalls,
+      runtime,
+    };
+  }
+
+  test("no file → keep defaults", () => {
+    const { runtime } = makeRuntime({
+      mtimes: [
+        null,
+      ],
+    });
+    expect(runtime.maybeReload()).toBe(false);
+    expect(runtime.config).toEqual(DEFAULT_CONFIG);
+  });
+
+  test("same mtime → no reload", () => {
+    const { loadCalls, runtime } = makeRuntime({
+      load: () => ({
+        config: fakeConfig({
+          density: "compact",
+        }),
+        mtime: 10,
+      }),
+      mtimes: [
+        10,
+        10,
+        10,
+      ],
+    });
+    runtime.mtime = 10;
+    expect(runtime.maybeReload()).toBe(false);
+    expect(loadCalls()).toBe(0);
+  });
+
+  test("invalid file → keep last valid, notify once", () => {
+    const notifications: string[] = [];
+    const { loadCalls, runtime } = makeRuntime({
+      load: () => null,
+      mtimes: [
+        5,
+        5,
+        5,
+        5,
+      ],
+    });
+    runtime.mtime = 4;
+    expect(runtime.maybeReload((m) => notifications.push(m))).toBe(false);
+    expect(notifications).toHaveLength(1);
+    // 同一坏 mtime 再渲染 → 不重复 notify / 不重读
+    expect(runtime.maybeReload((m) => notifications.push(m))).toBe(false);
+    expect(loadCalls()).toBe(1);
+    expect(notifications).toHaveLength(1);
+  });
+
+  test("new valid mtime → config swapped", () => {
+    const { runtime } = makeRuntime({
+      load: () => ({
+        config: fakeConfig({
+          density: "spacious",
+        }),
+        mtime: 20,
+      }),
+      mtimes: [
+        20,
+      ],
+    });
+    runtime.mtime = 10;
+    expect(runtime.maybeReload()).toBe(true);
+    expect(runtime.config.density).toBe("spacious");
+  });
+
+  test("applyConfig swaps config and resyncs mtime", () => {
+    let currentMtime: number | null = 30;
+    const runtime = new SessionRuntime({
+      configPath: () => "/fake.yml",
+      statMtime: () => currentMtime,
+    });
+    runtime.applyConfig(
+      fakeConfig({
+        density: "compact",
+      }),
+    );
+    expect(runtime.config.density).toBe("compact");
+    // 面板已写入文件(mtime 30): 下一次渲染不再触发外部重载
+    currentMtime = null;
+    expect(runtime.maybeReload()).toBe(false);
+  });
+});
+
+// ─── usage 聚合 ──────────────────────────────────────────────────────────────
+
+describe("aggregateUsage", () => {
+  test("sums assistant usage, ignores non-assistant entries", () => {
+    const entries = [
+      {
+        type: "message",
+        message: {
+          role: "user",
+        },
+      },
+      {
+        type: "message",
+        message: {
+          role: "assistant",
+          usage: {
+            input: 100,
+            output: 50,
+            cost: {
+              total: 0.01,
+            },
+          },
+        },
+      },
+      {
+        type: "message",
+        message: {
+          role: "assistant",
+          usage: {
+            input: 10,
+            output: 5,
+            cost: {
+              total: 0.001,
+            },
+          },
+        },
+      },
+      {
+        type: "custom",
+      },
+    ] as never[];
+    const u = aggregateUsage(entries);
+    expect(u.inputTokens).toBe(110);
+    expect(u.outputTokens).toBe(55);
+    expect(u.costTotal).toBeCloseTo(0.011);
+    expect(u.hasTurn).toBe(true);
+  });
+
+  test("no turns → hasTurn false, cost null", () => {
+    const u = aggregateUsage([] as never[]);
+    expect(u.hasTurn).toBe(false);
+    expect(u.costTotal).toBeNull();
+  });
+});
+
+// ─── slots 判定(供 shouldInstallEditor 对齐)────────────────────────────────
+
+describe("border slot gating", () => {
+  test("all-none slots skip install decision", () => {
+    const slots: BorderSlots = {
+      bottom_left: "none",
+      bottom_right: "none",
+      top_left: "none",
+      top_right: "none",
+    };
+    expect(shouldInstallEditor(slots)).toBe(false);
+  });
+});
+
+// ─── inputs/usage 形状兜底 ───────────────────────────────────────────────────
+
+describe("SegmentInputs consumers", () => {
+  test("unknown usage stays null cost (spec: cost omitted when unknown)", () => {
+    const usage: SessionUsage = {
+      costTotal: null,
+      hasTurn: false,
+      inputTokens: 0,
+      outputTokens: 0,
+    };
+    const inputs: SegmentInputs = {
+      branchName: null,
+      contextPct: null,
+      elapsedSeconds: null,
+      mcpCount: 0,
+      model: undefined,
+      modelNames: {},
+      packageEntries: [],
+      skillCount: 0,
+      thinkingLevel: null,
+      usage,
+    };
+    expect(inputs.usage.costTotal).toBeNull();
+  });
+});
