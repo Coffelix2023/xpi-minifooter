@@ -385,7 +385,13 @@ describe("openGlimpsePanel", () => {
     );
     // bug02 回归: Cancel/Esc 走正式关闭协议, 不再发送非法 null 消息
     expect(html).not.toContain("send(null)");
-    expect(html.match(/window\.glimpse\.close\(\)/g)).toHaveLength(2);
+    expect(html.match(/window\.glimpse\.close\(\)/g)).toHaveLength(1);
+    expect(html).toContain(
+      'if (window.glimpse && typeof window.glimpse.close === "function") window.glimpse.close();',
+    );
+    expect(html).toContain(
+      'if (!window.glimpse || typeof window.glimpse.send !== "function") return;',
+    );
   });
 
   test("panel HTML passed to glimpse.prompt contains the form", async () => {
