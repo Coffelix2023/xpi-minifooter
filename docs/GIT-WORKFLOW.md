@@ -13,38 +13,28 @@
 - ignore / secret / 覆盖风险
 
 ## 2. 默认原则
-
-- `main` / `master` 视为保护分支。
-- 默认不直推保护分支。
+- 本仓库采用单分支流程，`main` 是唯一开发、提交、同步与发布分支。
+- 不新建、不切换到功能分支、修复分支或发布分支。
 - 所有提交必须小粒度、可回滚。
 - 任何会覆盖、丢失、重写历史的操作都要先停下并说明风险。
 - 先看状态，再动 Git。
-
 ## 3. 每次 Git 动作前的固定顺序
 
 只要任务碰到 Git / GitHub / 远端仓库 / release，先按顺序做：
-
-1. `git branch --show-current`
-2. `git status --short`
-3. `git diff --stat`
-4. `git remote get-url origin`；仅成功时执行 `git fetch origin`
-5. 检查当前分支与远端关系；无远端的新仓库跳过同步
-
-然后再决定：
-- 建分支
-- 继续本分支
-- 只做本地提交
-- 推送
-- 开 PR
-- 暂停并问用户
-
+1. `git branch --show-current`，必须确认是 `main`。
+2. `git status --short`。
+3. `git diff --stat`。
+4. `git remote get-url origin`；仅成功时执行 `git fetch origin`。
+5. 检查 `main` 与 `origin/main` 的关系；若有未提交改动、分叉或冲突，先停下说明。
+6. 不执行建分支、切分支或开 PR；修改完成后只在 `main` 提交，并按用户授权决定是否推送。
+所有 Git 动作都必须在 `main` 上继续：
+- 若当前不是 `main`，先切回 `main`，不在其他分支提交。
+- 不创建、不切换、不推送任何非 `main` 分支。
+- 只在工作区干净且 `main` 与 `origin/main` 关系明确时继续。
 ## 4. 分支规则
-
-- 新工作默认放在 `feat/*`、`fix/*`、`refactor/*`、`chore/*`、`docs/*`、`test/*`。
-- 当前在 `main/master` 时，默认先建工作分支，再做修改。
-- 只有当项目级阶段说明明确允许例外时，才可在 `main` 上继续。
-- 如果项目文档没有明确写“允许直推 main”，按“先分支后 PR”处理。
-
+- 本仓库只保留 `main`。
+- 不创建功能分支、修复分支、发布分支或临时分支。
+- 已合并的非 `main` 分支按用户授权清理；未合并分支先审查提交内容，再决定保留或丢弃。
 ## 5. 暂存与提交
 
 - 优先使用 `git add <specific-file>`。
@@ -63,15 +53,10 @@
 - 如果有未提交改动，先停，不直接拉取覆盖。
 - 如果分叉或冲突，先说明，不猜测，不 force。
 
-## 7. PR 与发布
-
-- 分支推送后再开 PR。
-- PR 标题尽量沿用 Conventional Commits 风格。
-- PR 描述至少说明：目的、改了什么、怎么验证。
-- 发布优先走项目约定的发布流程。
-- 如果项目约定 `release-please`，Release PR 由人类手动合并。
-- Agent 不代做最终 merge。
-
+## 7. 推送与发布
+- 只从已验证的 `main` 推送与发布。
+- 本仓库不开 PR，不创建 Release PR；发布按项目已有入口执行。
+- Agent 不修改 GitHub ruleset、branch protection 或仓库 settings。
 ## 8. 安全红线
 
 绝对禁止，除非用户明确要求并确认后再执行：
@@ -107,17 +92,23 @@
 4. 约定式提交
 5. 再决定 push 还是继续改
 
+## 11. 用户最常见动作
+### 11.1 本地改完后
+1. 确认在 `main`。
+2. 看 `git status` 和 `git diff`。
+3. 精确 `git add`。
+4. 运行验证命令。
+5. 约定式提交。
+6. 按用户授权推送 `main`。
+
 ### 11.2 需要同步远端
-1. `git fetch origin`
-2. 检查是否有本地未提交改动
-3. 如果只是落后，`git pull --rebase`
-4. 如果冲突，先停
+1. `git fetch origin`。
+2. 检查是否有本地未提交改动。
+3. 如果只是落后，使用快进同步；如果分叉或冲突，先停。
 
 ### 11.3 需要发布
-1. 看项目发布流程
-2. 先开 Release PR 或按项目约定处理
-3. 人类手动合并
-
+1. 确认 `main` 已通过验证且与远端关系明确。
+2. 按项目发布入口从 `main` 执行。
 ## 12. 说明
 
 - 具体项目级阶段、ruleset、release 细则，放在该项目的 `docs/GITHUB-GUARD.md`。

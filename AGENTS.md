@@ -62,13 +62,15 @@ pnpm test             # vitest run
 - **日常开发**:软链到 `~/.pi/agent/extensions/xpi-minifooter`,在 Pi 内 `/reload` 热载。
 
 ## 6. Git 与回滚纪律
-- 只要任务碰到 git / GitHub / 远端仓库 / release，先读 `docs/GIT-WORKFLOW.md`，再读 `docs/GITHUB-GUARD.md`。
-- 先做 `git branch --show-current`、`git status --short`、`git diff --stat`; 仅存在 `origin` 时再 `git fetch origin`,然后决定建分支、提交、推送或暂停。
-- 默认不直推 `main/master`; 如果项目文档允许例外, 以项目文档为准。
-- 暂存用 `git add <specific-file>`; 提交用小粒度 Conventional Commits; 不用 `git add .` / `git add -A`.
-- 推送分支后再开 PR; Agent 不代做 merge, 不代做 `git push --force`、`reset --hard`、`restore .`、`checkout .`、`clean -fd`、`--no-verify`.
-- 如果用户问合并 / release / 发布, 说明 GitHub UI 里的下一步并停在需要人类确认的位置。
-- 远端不存在、分叉、冲突、ignore 对不上时先说风险, 不猜测.
+- 只要任务碰到 git / GitHub / 远端仓库 / release，先读 `docs/GIT-WORKFLOW.md`、`docs/GITHUB-GUARD.md`，并先执行 `git branch --show-current`、`git status --short`、`git diff --stat`、`git fetch origin`。
+- 本仓库采用单分支流程：代码修改、提交、推送与发布一律只在 `main` 中进行；禁止新建或切换到其他工作分支。
+- 进入任务前确认当前分支是 `main`；若不是，先回到 `main`，不要在其他分支提交。
+- 提交前检查远端关系、暂存内容与敏感文件；保持提交小粒度、可回滚，并使用 Conventional Commits。
+- 暂存用 `git add <specific-file>`；不用 `git add .` / `git add -A`。
+- 不使用 `git push --force`、`git push -f`、`git push --force-with-lease`、`git reset --hard`、`git checkout .`、`git restore .`、`git clean -fd`、`git commit --amend` 或 `--no-verify`。
+- 仅在用户明确要求且确认范围后删除已合并的非 `main` 分支；不修改 GitHub ruleset、branch protection 或仓库 settings。
+- 发布直接从已验证的 `main` 执行；不创建发布分支，不开 PR，不代替人类完成需要 UI 确认的仓库设置操作。
+- 发现工作区有未提交改动、分叉、冲突、远端不存在或 ignore 对不上时先停下说明，不猜测、不覆盖。
 
 ## 7. 禁止清单
 - ❌ 引入 Web 交付框架(`next`/`react-dom`/路由框架)或浏览器专属 API.
