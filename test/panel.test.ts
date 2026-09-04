@@ -68,6 +68,30 @@ describe("buildPanelHtml", () => {
       }),
     ).toContain('<button id="apply" type="button" data-i18n="apply">Apply</button>');
   });
+
+  test("closes .checks before icons section and maintains form section hierarchy", () => {
+    const html = buildPanelHtml(DEFAULT_CONFIG);
+    const checksIndex = html.indexOf('<div class="checks">');
+    const iconsIndex = html.indexOf('<div class="title">icons</div>');
+    expect(checksIndex).toBeGreaterThan(-1);
+    expect(iconsIndex).toBeGreaterThan(checksIndex);
+
+    const checksSnippet = html.slice(checksIndex, iconsIndex);
+    expect(checksSnippet).toContain('id="show_icons"');
+    expect(checksSnippet).toContain('id="show_labels"');
+    expect(checksSnippet).toContain('id="native_footer"');
+    expect(checksSnippet).toContain("</div>");
+
+    const labelsIndex = html.indexOf('<div class="title">labels</div>');
+    const nativeFooterIndex = html.indexOf('id="nativeFooterStatus"');
+    const borderSlotsIndex = html.indexOf('data-i18n="border_slots"');
+    const footerLayoutIndex = html.indexOf('data-i18n="footer_layout"');
+
+    expect(labelsIndex).toBeGreaterThan(iconsIndex);
+    expect(nativeFooterIndex).toBeGreaterThan(labelsIndex);
+    expect(borderSlotsIndex).toBeGreaterThan(nativeFooterIndex);
+    expect(footerLayoutIndex).toBeGreaterThan(borderSlotsIndex);
+  });
   test("embeds both languages and refreshes marked content on lang change", () => {
     const html = buildPanelHtml(enConfig(), {
       liveApply: true,
@@ -604,10 +628,12 @@ describe("openGlimpsePanel", () => {
     emit: (win: {
       close: () => void;
       emit: (event: string, data?: unknown) => void;
+      send?: (js: string) => void;
     }) => void,
     calls: {
       html?: string;
     }[] = [],
+    sent: string[] = [],
   ): GlimpseModule {
     return {
       open(html: string) {
@@ -640,6 +666,9 @@ describe("openGlimpsePanel", () => {
               listener(...args);
             };
             return win.on(event, wrap);
+          },
+          send(js: string) {
+            sent.push(js);
           },
         };
         queueMicrotask(() => emit(win));
@@ -723,6 +752,80 @@ describe("openGlimpsePanel", () => {
       onApply: (payload) => applied.push(payload),
     });
     expect(applied).toHaveLength(1);
+    expect(result).toEqual({
+      outcome: "cancelled",
+    });
+  });
+
+  test("open() Apply executes window.postMessage via win.send string", async () => {
+    const cfg = structuredClone(DEFAULT_CONFIG);
+    const sent: string[] = [];
+    await openGlimpsePanel(enConfig(), {
+      load: async () =>
+        fakeOpenGlimpse(
+          (win) => {
+            win.emit("message", {
+              action: "apply",
+              config: cfg,
+            });
+            win.close();
+          },
+          [],
+          sent,
+        ),
+      onApply: (_payload, respond) => {
+        respond?.({
+          message: "config applied",
+          ok: true,
+        });
+      },
+    });
+    expect(sent).toHaveLength(1);
+    expect(typeof sent[0]).toBe("string");
+    expect(sent[0]?.startsWith("window.postMessage(")).toBe(true);
+    expect(sent[0]?.endsWith(', "*");')).toBe(true);
+    const json = JSON.parse(
+      sent[0]?.slice("window.postMessage(".length, -', "*");'.length) ?? "{}",
+    );
+    expect(json).toEqual({
+      message: "config applied",
+      ok: true,
+      type: "apply-result",
+    });
+  });
+
+  test("language switching script refreshes dynamic texts and status", () => {
+    const html = buildPanelHtml(enConfig(), {
+      liveApply: true,
+      nativeStatuses: [
+        "● test:ok",
+      ],
+    });
+    expect(html).toContain("function refreshLanguage()");
+    expect(html).toContain('el("lang").addEventListener("change", refreshLanguage)');
+    expect(html).toContain('var nfs = el("nativeFooterStatus");');
+    expect(html).toContain("text.nativeFooterAvailable");
+    expect(html).toContain("renderRows();");
+    expect(html).toContain("renderPreview();");
+  });
+
+  test("Cancel closes panel without submitting saved payload", async () => {
+    const applied: unknown[] = [];
+    let closeCalled = 0;
+    const result = await openGlimpsePanel(enConfig(), {
+      load: async () =>
+        fakeOpenGlimpse((win) => {
+          const origClose = win.close.bind(win);
+          win.close = () => {
+            closeCalled += 1;
+            origClose();
+          };
+          win.close();
+        }),
+      onApply: (payload) => applied.push(payload),
+    });
+    expect(closeCalled).toBe(1);
+    expect(applied).toHaveLength(0);
     expect(result).toEqual({
       outcome: "cancelled",
     });

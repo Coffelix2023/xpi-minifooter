@@ -49,7 +49,7 @@ export interface GlimpseWindow {
   close(): void;
   on(event: string, listener: (...args: unknown[]) => void): this;
   once(event: string, listener: (...args: unknown[]) => void): this;
-  send?(message: unknown): void;
+  send?(js: string): void;
 }
 
 export interface GlimpseModule {
@@ -546,16 +546,17 @@ export function buildPanelHtml(
       <label><input id="show_icons" type="checkbox" ${config.show_icons ? "checked" : ""}> <span data-i18n="show_icons">show_icons</span></label>
       <label><input id="show_labels" type="checkbox" ${config.show_labels ? "checked" : ""}> <span data-i18n="show_labels">show_labels</span></label>
       <label><input id="native_footer" type="checkbox" ${config.native_footer ? "checked" : ""}> <span data-i18n="native_footer">native_footer</span></label>
-    <div class="section">
-      <div class="title">icons</div>
-      <div class="grid">${PARAMETER_IDS.map((id) => `<div><label>${id}</label>${select(`icon_${id}`, config.icons[id] ?? "", iconOptions)}</div>`).join("")}</div>
     </div>
-    <div class="section">
-      <div class="title">labels</div>
-      <div class="grid">${PARAMETER_IDS.map((id) => `<div><label>${id}</label><input id="label_${id}" type="text" maxlength="64" value="${e(config.labels[id] ?? "")}"></div>`).join("")}</div>
-    </div>
-    <div id="nativeFooterStatus" class="legal">${e((options.nativeStatuses ?? []).length > 0 ? `${t.nativeFooterAvailable}: ${(options.nativeStatuses ?? []).join(" ")}` : t.nativeFooterEmpty)}</div>
   </div>
+  <div class="section">
+    <div class="title">icons</div>
+    <div class="grid">${PARAMETER_IDS.map((id) => `<div><label>${id}</label>${select(`icon_${id}`, config.icons[id] ?? "", iconOptions)}</div>`).join("")}</div>
+  </div>
+  <div class="section">
+    <div class="title">labels</div>
+    <div class="grid">${PARAMETER_IDS.map((id) => `<div><label>${id}</label><input id="label_${id}" type="text" maxlength="64" value="${e(config.labels[id] ?? "")}"></div>`).join("")}</div>
+  </div>
+  <div id="nativeFooterStatus" class="legal">${e((options.nativeStatuses ?? []).length > 0 ? `${t.nativeFooterAvailable}: ${(options.nativeStatuses ?? []).join(" ")}` : t.nativeFooterEmpty)}</div>
   <div class="section">
     <div class="title" data-i18n="border_slots">border_slots</div>
     <div class="grid">
@@ -665,6 +666,10 @@ export function buildPanelHtml(
     TXT.occupancyEmpty = text.occupancyEmpty;
     TXT.occupancyUsed = text.occupancyUsed;
     TXT.sourcePreviewPartial = text.sourcePreviewPartial;
+    var nfs = el("nativeFooterStatus");
+    if (nfs) {
+      nfs.textContent = NATIVE_STATUSES.length > 0 ? (text.nativeFooterAvailable + ": " + NATIVE_STATUSES.join(" ")) : text.nativeFooterEmpty;
+    }
     renderRows();
     renderPreview();
     if (activeTab === "sourceTab") renderSourcePreview();
@@ -1001,10 +1006,12 @@ function openLivePanel(
       if (parsed === null) return;
       if (parsed.action === "apply") {
         onApply?.(parsed.saved, (feedback) =>
-          win.send?.({
-            type: "apply-result",
-            ...feedback,
-          }),
+          win.send?.(
+            `window.postMessage(${JSON.stringify({
+              type: "apply-result",
+              ...feedback,
+            })}, "*");`,
+          ),
         );
         return;
       }
