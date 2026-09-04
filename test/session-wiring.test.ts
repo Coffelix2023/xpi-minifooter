@@ -695,11 +695,11 @@ describe("SegmentInputs consumers", () => {
       mcpCount: 0,
       model: undefined,
       modelNames: {},
+      skillCount: 0,
+      thinkingLevel: null,
       nativeStatuses: [
         "● rtk:on",
       ],
-      skillCount: 0,
-      thinkingLevel: null,
       usage: {
         costTotal: null,
         hasTurn: false,

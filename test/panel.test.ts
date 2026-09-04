@@ -250,7 +250,9 @@ describe("panel command config refresh", () => {
     const applied: unknown[] = [];
     const saved: unknown[] = [];
     const notifications: string[] = [];
-    const stderrWrite = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const stderrWrite = vi
+      .spyOn(process.stderr, "write")
+      .mockImplementation(() => true);
     const runtime = new SessionRuntime({
       configPath: () => "/nonexistent/minifooter.yml",
       statMtime: () => null,
