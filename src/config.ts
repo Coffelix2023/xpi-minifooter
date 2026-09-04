@@ -30,21 +30,54 @@ export const PARAMETER_IDS = [
 
 export type ParameterId = (typeof PARAMETER_IDS)[number];
 
-const borderSlotSchema = Type.Union([
+export type BorderSlot = (ParameterId | "none")[];
+export type BorderSlotValue = BorderSlot | ParameterId | "none";
+export function slotValues(slot: BorderSlotValue): BorderSlot {
+  return Array.isArray(slot)
+    ? slot
+    : [
+        slot,
+      ];
+}
+export function firstSlotValue(slot: BorderSlotValue): ParameterId | "none" {
+  return slotValues(slot)[0] ?? "none";
+}
+
+const borderSlotValueSchema = Type.Union([
   ...PARAMETER_IDS.map((id) => Type.Literal(id)),
   Type.Literal("none"),
 ]);
+const borderSlotSchema = Type.Union([
+  borderSlotValueSchema,
+  Type.Array(borderSlotValueSchema, {
+    maxItems: 2,
+  }),
+]);
+const borderSlotsSchema = Type.Object({
+  bottom_left: Type.Optional(borderSlotSchema),
+  bottom_right: Type.Optional(borderSlotSchema),
+  top_left: Type.Optional(borderSlotSchema),
+  top_right: Type.Optional(borderSlotSchema),
+});
+const parameterTextSchema = Type.Object(
+  Object.fromEntries(
+    PARAMETER_IDS.map((id) => [
+      id,
+      Type.Optional(
+        Type.String({
+          maxLength: 64,
+        }),
+      ),
+    ]),
+  ),
+  {
+    additionalProperties: false,
+  },
+);
 
 // 所有字段 Optional: 用户文件只写子集, 缺省由 DEFAULT_CONFIG 补齐(默认值在代码)
 export const configSchema = Type.Object({
-  border_slots: Type.Optional(
-    Type.Object({
-      bottom_left: Type.Optional(borderSlotSchema),
-      bottom_right: Type.Optional(borderSlotSchema),
-      top_left: Type.Optional(borderSlotSchema),
-      top_right: Type.Optional(borderSlotSchema),
-    }),
-  ),
+  border_slots: Type.Optional(borderSlotsSchema),
   cwd_path_mode: Type.Optional(
     Type.Union([
       Type.Literal("basename"),
@@ -89,12 +122,15 @@ export const configSchema = Type.Object({
       Type.Literal("full"),
     ]),
   ),
+  icons: Type.Optional(parameterTextSchema),
+  labels: Type.Optional(parameterTextSchema),
   lang: Type.Optional(
     Type.Union([
       Type.Literal("zh"),
       Type.Literal("en"),
     ]),
   ),
+  native_footer: Type.Optional(Type.Boolean()),
   show_icons: Type.Optional(Type.Boolean()),
   show_labels: Type.Optional(Type.Boolean()),
   style: Type.Optional(Type.Literal("minimalist")),
@@ -125,7 +161,7 @@ export const configSchema = Type.Object({
 export interface MinifooterConfig {
   border_slots: Record<
     "top_left" | "top_right" | "bottom_left" | "bottom_right",
-    ParameterId | "none"
+    BorderSlot
   >;
   cwd_path_mode: "basename" | "relative" | "full";
   density: "compact" | "comfortable" | "spacious";
@@ -135,7 +171,10 @@ export interface MinifooterConfig {
     separator: "slash" | "dot" | "pipe" | "space";
   }[];
   git_branch_mode: "mini" | "default" | "full";
+  icons: Partial<Record<ParameterId, string>>;
+  labels: Partial<Record<ParameterId, string>>;
   lang: "zh" | "en";
+  native_footer: boolean;
   show_icons: boolean;
   show_labels: boolean;
   style: "minimalist";
@@ -151,15 +190,26 @@ export const DEFAULT_CONFIG: MinifooterConfig = {
   density: "comfortable",
   editor_padding: "default",
   git_branch_mode: "default",
+  icons: {},
+  labels: {},
   lang: "zh",
+  native_footer: true,
   show_icons: true,
   show_labels: false,
   style: "minimalist",
   border_slots: {
-    bottom_left: "none",
-    bottom_right: "none",
-    top_left: "none",
-    top_right: "none",
+    bottom_left: [
+      "none",
+    ],
+    bottom_right: [
+      "none",
+    ],
+    top_left: [
+      "none",
+    ],
+    top_right: [
+      "none",
+    ],
   },
   footer_layout: [
     {
@@ -244,16 +294,38 @@ export function parseConfigWithError(raw: string): ConfigParseResult {
         separator: row.separator ?? "slash",
       })) ?? structuredClone(DEFAULT_CONFIG.footer_layout),
     border_slots: {
-      ...DEFAULT_CONFIG.border_slots,
-      ...partial.border_slots,
+      ...structuredClone(DEFAULT_CONFIG.border_slots),
+      ...Object.fromEntries(
+        Object.entries(partial.border_slots ?? {}).map(([key, value]) => [
+          key,
+          Array.isArray(value)
+            ? value
+            : [
+                value,
+              ],
+        ]),
+      ),
+    },
+    icons: {
+      ...DEFAULT_CONFIG.icons,
+      ...partial.icons,
+    },
+    labels: {
+      ...DEFAULT_CONFIG.labels,
+      ...partial.labels,
     },
     thresholds: {
       ...DEFAULT_CONFIG.thresholds,
       ...partial.thresholds,
     },
   };
-  const borderIds = Object.values(merged.border_slots).filter((id) => id !== "none");
-  if (new Set(borderIds).size !== borderIds.length)
+  const borderIds = Object.values(merged.border_slots)
+    .flat()
+    .filter((id) => id !== "none");
+  if (
+    Object.values(merged.border_slots).some((slot) => slot.length > 2) ||
+    new Set(borderIds).size !== borderIds.length
+  )
     return {
       config: null,
       error: "duplicate border slot parameter",

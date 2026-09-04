@@ -3,6 +3,8 @@ import {
   contextLevel,
   countMcpServers,
   countSkills,
+  decorateSegment,
+  ICON_CANDIDATES,
   parseGitStatusPorcelain,
   resetGitCache,
   resolveContextBar,
@@ -14,10 +16,26 @@ import {
   resolveNativeFooter,
   resolveSessionTime,
   resolveTokens,
+  SEGMENT_ICONS,
   type SegmentContext,
   type SessionUsage,
 } from "../src/segments.js";
 
+describe("icon configuration", () => {
+  test("provides five candidates and falls back on unavailable icon", () => {
+    expect(ICON_CANDIDATES).toHaveLength(5);
+    expect(
+      decorateSegment("git_branch", "main", {
+        lang: "en",
+        show_icons: true,
+        show_labels: false,
+        icons: {
+          git_branch: "not-a-glyph",
+        },
+      }),
+    ).toBe(`${SEGMENT_ICONS.git_branch} main`);
+  });
+});
 beforeEach(() => {
   resetGitCache();
 });
@@ -136,7 +154,14 @@ describe("2.6 context bar", () => {
     expect(resolveContextBar(noopCtx, 0, THRESHOLDS, false)).toBe("░░░░░░░░░░ 0%");
     expect(resolveContextBar(noopCtx, 80, THRESHOLDS, false)).toBe("████████░░ 80%");
     expect(resolveContextBar(noopCtx, 100, THRESHOLDS, false)).toBe("██████████ 100%");
+    expect(resolveContextBar(noopCtx, 50, THRESHOLDS, false, 12_000, 1_000_000)).toBe(
+      "█████░░░░░ 50% 12.0k/1.0M",
+    );
     expect(resolveContextBar(noopCtx, 50, THRESHOLDS, true)).toBe("#####----- 50%");
+  });
+
+  test("context bar keeps Unicode glyphs when icons are disabled", () => {
+    expect(resolveContextBar(noopCtx, 50, THRESHOLDS, false)).toContain("█████");
   });
 
   test("unknown window marker", () => {
@@ -230,7 +255,20 @@ describe("2.8 native_footer & mcp_skills", () => {
       ]),
     ).toBe("● rtk:on ⚡MCP: 3 servers enabled");
   });
-
+  test("native_footer is width-safe", () => {
+    expect(
+      resolveNativeFooter(
+        {
+          ...noopCtx,
+          width: 18,
+        },
+        [
+          "first",
+          "second",
+        ],
+      ),
+    ).toBe("first second");
+  });
   test("native_footer omitted when empty", () => {
     expect(resolveNativeFooter(noopCtx, [])).toBeNull();
   });

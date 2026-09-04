@@ -28,10 +28,10 @@ import {
   loadConfig,
   loadConfigWithError,
   type MinifooterConfig,
+  slotValues,
 } from "./config.js";
 import {
   type BorderSlotId,
-  type BorderSlots,
   renderBorderLine,
   shouldInstallEditor,
 } from "./editor-border.js";
@@ -189,6 +189,8 @@ export function countMcpFromRaws(
 export interface SegmentInputs {
   branchName: string | null;
   contextPct: number | null;
+  contextTokens?: number | null;
+  contextWindow?: number | null;
   cwd: string;
   elapsedSeconds: number | null;
   home: string;
@@ -215,6 +217,7 @@ export function collectInputs(
   branchName: string | null,
   nativeStatuses: readonly string[] = [],
 ): SegmentInputs {
+  const contextUsage = ctx.getContextUsage();
   const agentDir = getAgentDir();
   const settingsRaw = readTextFile(join(agentDir, "settings.json"));
   const modelNames = loadModelNames(
@@ -226,7 +229,9 @@ export function collectInputs(
   );
   return {
     branchName,
-    contextPct: ctx.getContextUsage()?.percent ?? null,
+    contextPct: contextUsage?.percent ?? null,
+    contextTokens: contextUsage?.tokens ?? null,
+    contextWindow: contextUsage?.contextWindow ?? null,
     cwd: ctx.cwd,
     elapsedSeconds:
       runtime.startAt === 0 ? null : (Date.now() - runtime.startAt) / 1000,
@@ -274,7 +279,9 @@ export function renderSegment(
         ctx,
         inputs.contextPct,
         config.thresholds,
-        !config.show_icons,
+        false,
+        inputs.contextTokens ?? null,
+        inputs.contextWindow ?? null,
       );
       break;
     case "context_compact":
@@ -322,6 +329,8 @@ export function renderSegment(
       return null;
   }
   const decorated = decorateSegment(id, text, {
+    icons: config.icons,
+    labels: config.labels,
     lang: config.lang,
     show_icons: config.show_icons,
     show_labels: config.show_labels,
@@ -354,12 +363,14 @@ export function buildFooterRows(
   runPorcelain: () => string | null,
 ): FooterRowData[] {
   const activeBorderIds = new Set(
-    Object.values(config.border_slots).filter((id) => id !== "none"),
+    Object.values(config.border_slots)
+      .flat()
+      .filter((id) => id !== "none"),
   );
   return config.footer_layout.map((row) => {
     const segments: FooterSegment[] = [];
     for (const id of row.items) {
-      if (activeBorderIds.has(id)) continue;
+      if (id === "native_footer" || activeBorderIds.has(id)) continue;
       const seg = renderSegment(id, config, inputs, width, runPorcelain);
       if (seg !== null) segments.push(seg);
     }
@@ -384,9 +395,18 @@ export function buildBorderSegments(
     "bottom_left",
     "bottom_right",
   ] as const) {
-    const id = config.border_slots[slot];
+    const ids = slotValues(config.border_slots[slot]);
+    const rendered = ids
+      .filter((id) => id !== "none")
+      .map((id) => renderSegment(id, config, inputs, width, runPorcelain))
+      .filter((segment): segment is FooterSegment => segment !== null);
     out[slot] =
-      id === "none" ? null : renderSegment(id, config, inputs, width, runPorcelain);
+      rendered.length === 0
+        ? null
+        : {
+            ...rendered[0],
+            text: rendered.map((segment) => segment.text).join(" "),
+          };
   }
   return out;
 }
@@ -441,9 +461,28 @@ class MiniFooter implements Component {
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([, text]) => text),
     );
+    this.env.runtime.nativeStatuses = [
+      ...inputs.nativeStatuses,
+    ];
     const rows = buildFooterRows(this.env.runtime.config, inputs, width, () =>
       fetchPorcelain(this.env.pi, this.env.runtime, this.env.ctx.cwd),
     );
+    const nativeFooter = this.env.runtime.config.native_footer
+      ? renderSegment(
+          "native_footer",
+          this.env.runtime.config,
+          inputs,
+          width,
+          () => null,
+        )
+      : null;
+    if (nativeFooter !== null)
+      rows.push({
+        separator: "space",
+        segments: [
+          nativeFooter,
+        ],
+      });
     return renderFooter(rows, this.env.runtime.config.density, width, this.theme);
   }
 }
@@ -601,13 +640,14 @@ export class SessionRuntime {
   setEditorSync(sync: () => void): void {
     this.syncEditor = sync;
   }
+  nativeStatuses: string[] = [];
 }
 
 // ─── 接线入口 ────────────────────────────────────────────────────────────────
 
 /** 任一槽位非 none → 安装 CustomEditor */
 function slotsActive(config: MinifooterConfig): boolean {
-  return shouldInstallEditor(config.border_slots as BorderSlots);
+  return shouldInstallEditor(config.border_slots);
 }
 
 /**

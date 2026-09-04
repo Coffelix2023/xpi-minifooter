@@ -41,15 +41,35 @@ export function applyPanelConfig(
     path: configPath(),
     save: saveConfig,
   },
+  respond?: (message: { ok: boolean; message: string }) => void,
 ): boolean {
   const raw = "rawYaml" in result ? result.rawYaml : JSON.stringify(result.config);
   const parsed = parseConfigWithError(raw);
   if (parsed.config === null) {
-    notify(`xpi-minifooter: ${parsed.error ?? "invalid configuration"}`);
+    const message = `xpi-minifooter: ${parsed.error ?? "invalid configuration"}`;
+    notify(message);
+    respond?.({
+      ok: false,
+      message,
+    });
     return false;
   }
-  deps.save(deps.path, parsed.config);
+  try {
+    deps.save(deps.path, parsed.config);
+  } catch (error) {
+    const message = `xpi-minifooter: failed to save configuration: ${String(error)}`;
+    notify(message);
+    respond?.({
+      ok: false,
+      message,
+    });
+    return false;
+  }
   runtime.applyConfig(parsed.config);
+  respond?.({
+    message: "xpi-minifooter: configuration applied",
+    ok: true,
+  });
   return true;
 }
 
@@ -84,12 +104,14 @@ export async function runMinifooterCommand(
           outcome: "unavailable";
         }
     >,
+    respond?: (message: { ok: boolean; message: string }) => void,
   ) =>
     deps.save === undefined
-      ? applyPanelConfig(runtime, result, notifyError)
-      : applyPanelConfig(runtime, result, notifyError, deps.save);
+      ? applyPanelConfig(runtime, result, notifyError, undefined, respond)
+      : applyPanelConfig(runtime, result, notifyError, deps.save, respond);
   refreshConfigBeforePanel(runtime, (message) => ctx.ui.notify(message, "warning"));
   const result = await (deps.openPanel ?? openGlimpsePanel)(runtime.config, {
+    nativeStatuses: runtime.nativeStatuses,
     onApply: apply,
   } satisfies PanelDeps);
   if (result.outcome === "saved") {

@@ -52,15 +52,22 @@ export function fitBorder(
 }
 
 export interface BorderSlots {
-  bottom_left: string;
-  bottom_right: string;
-  top_left: string;
-  top_right: string;
+  bottom_left: string | string[];
+  bottom_right: string | string[];
+  top_left: string | string[];
+  top_right: string | string[];
 }
 
 /** 3.2: 至少一个槽位非空(非 none/空串)才安装 editor */
 export function shouldInstallEditor(slots: BorderSlots): boolean {
-  return Object.values(slots).some((v) => v.trim() !== "" && v !== "none");
+  return Object.values(slots).some((value) => {
+    const values = Array.isArray(value)
+      ? value
+      : [
+          value,
+        ];
+    return values.some((v) => v.trim() !== "" && v !== "none");
+  });
 }
 
 /** 无边框时的行(不动边框) */

@@ -9,7 +9,13 @@
 import { join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { parse as parseYaml } from "yaml";
-import { type MinifooterConfig, PARAMETER_IDS, serializeConfig } from "./config.js";
+import {
+  type MinifooterConfig,
+  PARAMETER_IDS,
+  serializeConfig,
+  slotValues,
+} from "./config.js";
+import { ICON_CANDIDATES } from "./segments.js";
 
 const ERROR_LINE_PATTERN = /line (\d+)/i;
 
@@ -43,6 +49,7 @@ export interface GlimpseWindow {
   close(): void;
   on(event: string, listener: (...args: unknown[]) => void): this;
   once(event: string, listener: (...args: unknown[]) => void): this;
+  send?(message: unknown): void;
 }
 
 export interface GlimpseModule {
@@ -192,8 +199,11 @@ interface UiText {
     items: string;
   };
   modalReloadHint: string;
+  nativeFooterAvailable: string;
+  nativeFooterEmpty: string;
   occupancyEmpty: string;
   occupancyUsed: string;
+  panelLabels: Record<string, string>;
   paramDescriptions: Record<(typeof PARAMETER_IDS)[number], string>;
   parameterReference: (n: number) => string;
   preview: string;
@@ -215,6 +225,8 @@ export const UI_TEXT: Record<"zh" | "en", UiText> = {
     modalCancel: "[Esc/Enter/q] cancel",
     modalEditHint: "Edit ~/.pi/agent/minifooter.yml to change values.",
     modalReloadHint: "Changes hot-reload on next render.",
+    nativeFooterAvailable: "native footer status: available",
+    nativeFooterEmpty: "native footer status: none",
     occupancyEmpty: "No parameters embedded in border.",
     occupancyUsed: "Embedded in border: __USED__. Footer duplicates hidden.",
     preview: "preview",
@@ -247,6 +259,28 @@ export const UI_TEXT: Record<"zh" | "en", UiText> = {
       tr: "tr",
       warn: "warn",
     },
+    panelLabels: {
+      border_slots: "border_slots",
+      bottom_left: "bottom_left",
+      bottom_right: "bottom_right",
+      context_alert: "thresholds.context_alert (0-100)",
+      context_danger: "thresholds.context_danger (0-100)",
+      context_warn: "thresholds.context_warn (0-100)",
+      cwd_path_mode: "cwd_path_mode",
+      density: "density",
+      editor_padding: "editor_padding",
+      footer_layout: "footer_layout",
+      git_branch_mode: "git_branch_mode",
+      lang: "lang",
+      native_footer: "native_footer",
+      parameterReference: `${PARAMETER_IDS.length}-parameter reference`,
+      show_icons: "show_icons",
+      show_labels: "show_labels",
+      style: "style",
+      title: "xpi-minifooter",
+      top_left: "top_left",
+      top_right: "top_right",
+    },
     paramDescriptions: {
       context_bar: "context usage bar and percent",
       context_compact: "compact context percent",
@@ -275,8 +309,11 @@ export const UI_TEXT: Record<"zh" | "en", UiText> = {
     modalEditHint: "编辑 ~/.pi/agent/minifooter.yml 以修改配置。",
     // biome-ignore lint/security/noSecrets: UI 文案, 非密钥(中文高熵误报)
     modalReloadHint: "修改将在下次渲染时热加载。",
+    nativeFooterAvailable: "原生 footer 状态：可用",
+    nativeFooterEmpty: "原生 footer 状态：无",
     occupancyEmpty: "边框未嵌入参数。",
     occupancyUsed: "已嵌入边框: __USED__。footer 中的重复项将隐藏。",
+
     preview: "预览",
     save: "保存",
     sourcePreview: "源码预览",
@@ -307,6 +344,29 @@ export const UI_TEXT: Record<"zh" | "en", UiText> = {
       tr: "右上",
       warn: "警告",
     },
+    panelLabels: {
+      border_slots: "边框槽位",
+      bottom_left: "左下",
+      bottom_right: "右下",
+      context_alert: "阈值.提醒 (0-100)",
+      context_danger: "阈值.危险 (0-100)",
+      context_warn: "阈值.警告 (0-100)",
+      cwd_path_mode: "目录模式",
+      density: "密度",
+      editor_padding: "编辑器边距",
+      footer_layout: "页脚布局",
+      git_branch_mode: "分支模式",
+      lang: "语言",
+      nativeFooterAvailable: "原生 footer 状态：可用",
+      nativeFooterEmpty: "原生 footer 状态：无",
+      parameterReference: `${PARAMETER_IDS.length} 个参数参考`,
+      show_icons: "显示图标",
+      show_labels: "显示标签",
+      style: "样式",
+      title: "xpi-minifooter",
+      top_left: "左上",
+      top_right: "右上",
+    },
     paramDescriptions: {
       context_bar: "上下文用量条与百分比",
       context_compact: "紧凑上下文百分比",
@@ -331,6 +391,7 @@ export function buildPanelHtml(
   config: MinifooterConfig,
   options: {
     liveApply?: boolean;
+    nativeStatuses?: readonly string[];
   } = {},
 ) {
   const liveApply = options.liveApply === true;
@@ -338,15 +399,19 @@ export function buildPanelHtml(
   const lang = config.lang;
   const t = UI_TEXT[lang];
   const td = (id: (typeof PARAMETER_IDS)[number]) => t.paramDescriptions[id];
+  const panelText = JSON.stringify({
+    en: UI_TEXT.en,
+    zh: UI_TEXT.zh,
+  });
   const slotOptions = [
-    "none",
     ...PARAMETER_IDS,
   ];
   const slots = config.border_slots;
   const sourceText = e(serializeConfig(config));
   const th = config.thresholds;
   const reference = PARAMETER_IDS.map(
-    (id) => `<div class="ref-row"><code>${id}</code><span>${td(id)}</span></div>`,
+    (id) =>
+      `<div class="ref-row"><code>${id}</code><span data-param-description="${id}">${td(id)}</span></div>`,
   ).join("");
   const legalValues = [
     "lang: zh | en",
@@ -357,6 +422,9 @@ export function buildPanelHtml(
     "cwd_path_mode: basename | relative | full",
     "separator: slash | dot | pipe | space",
   ].join(" · ");
+  const iconOptions = [
+    ...ICON_CANDIDATES,
+  ];
   const select = (id: string, value: string, options: readonly string[]) =>
     selectHtml(id, value, options);
   return `<!DOCTYPE html>
@@ -426,26 +494,26 @@ export function buildPanelHtml(
 </style>
 </head>
 <body>
-<h1>xpi-minifooter <span class="hint">/minifooter.yml</span></h1>
+<h1><span data-i18n="title">xpi-minifooter</span> <span class="hint">/minifooter.yml</span></h1>
 <div class="tabs" role="tablist">
-  <button class="tab active" id="formTabButton" type="button" data-tab="formTab">${t.tabForm}</button>
-  <button class="tab" id="sourceTabButton" type="button" data-tab="sourceTab">${t.tabSource}</button>
+  <button class="tab active" id="formTabButton" type="button" data-tab="formTab" data-i18n="tabForm">${t.tabForm}</button>
+  <button class="tab" id="sourceTabButton" type="button" data-tab="sourceTab" data-i18n="tabSource">${t.tabSource}</button>
 </div>
 <div id="formTab" class="tab-panel active">
   <div class="grid">
-    <div><label>lang</label>${select("lang", config.lang, [
+    <div><label data-i18n="lang">lang</label>${select("lang", config.lang, [
       "zh",
       "en",
     ])}</div>
-    <div><label>style</label>${select("style", config.style, [
+    <div><label data-i18n="style">style</label>${select("style", config.style, [
       "minimalist",
     ])}</div>
-    <div><label>density</label>${select("density", config.density, [
+    <div><label data-i18n="density">density</label>${select("density", config.density, [
       "compact",
       "comfortable",
       "spacious",
     ])}</div>
-    <div><label>editor_padding</label>${select(
+    <div><label data-i18n="editor_padding">editor_padding</label>${select(
       "editor_padding",
       config.editor_padding,
       [
@@ -453,12 +521,16 @@ export function buildPanelHtml(
         "relaxed",
       ],
     )}</div>
-    <div><label>cwd_path_mode</label>${select("cwd_path_mode", config.cwd_path_mode, [
-      "basename",
-      "relative",
-      "full",
-    ])}</div>
-    <div><label>git_branch_mode</label>${select(
+    <div><label data-i18n="cwd_path_mode">cwd_path_mode</label>${select(
+      "cwd_path_mode",
+      config.cwd_path_mode,
+      [
+        "basename",
+        "relative",
+        "full",
+      ],
+    )}</div>
+    <div><label data-i18n="git_branch_mode">git_branch_mode</label>${select(
       "git_branch_mode",
       config.git_branch_mode,
       [
@@ -467,56 +539,94 @@ export function buildPanelHtml(
         "full",
       ],
     )}</div>
-    <div><label>thresholds.context_warn (0-100)</label><input id="context_warn" type="number" min="0" max="100" value="${th.context_warn}"></div>
-    <div><label>thresholds.context_alert (0-100)</label><input id="context_alert" type="number" min="0" max="100" value="${th.context_alert}"></div>
-    <div><label>thresholds.context_danger (0-100)</label><input id="context_danger" type="number" min="0" max="100" value="${th.context_danger}"></div>
+    <div><label data-i18n="context_warn">thresholds.context_warn (0-100)</label><input id="context_warn" type="number" min="0" max="100" value="${th.context_warn}"></div>
+    <div><label data-i18n="context_alert">thresholds.context_alert (0-100)</label><input id="context_alert" type="number" min="0" max="100" value="${th.context_alert}"></div>
+    <div><label data-i18n="context_danger">thresholds.context_danger (0-100)</label><input id="context_danger" type="number" min="0" max="100" value="${th.context_danger}"></div>
     <div class="checks">
-      <label><input id="show_icons" type="checkbox" ${config.show_icons ? "checked" : ""}> show_icons</label>
-      <label><input id="show_labels" type="checkbox" ${config.show_labels ? "checked" : ""}> show_labels</label>
+      <label><input id="show_icons" type="checkbox" ${config.show_icons ? "checked" : ""}> <span data-i18n="show_icons">show_icons</span></label>
+      <label><input id="show_labels" type="checkbox" ${config.show_labels ? "checked" : ""}> <span data-i18n="show_labels">show_labels</span></label>
+      <label><input id="native_footer" type="checkbox" ${config.native_footer ? "checked" : ""}> <span data-i18n="native_footer">native_footer</span></label>
+    <div class="section">
+      <div class="title">icons</div>
+      <div class="grid">${PARAMETER_IDS.map((id) => `<div><label>${id}</label>${select(`icon_${id}`, config.icons[id] ?? "", iconOptions)}</div>`).join("")}</div>
     </div>
+    <div class="section">
+      <div class="title">labels</div>
+      <div class="grid">${PARAMETER_IDS.map((id) => `<div><label>${id}</label><input id="label_${id}" type="text" maxlength="64" value="${e(config.labels[id] ?? "")}"></div>`).join("")}</div>
+    </div>
+    <div id="nativeFooterStatus" class="legal">${e((options.nativeStatuses ?? []).length > 0 ? `${t.nativeFooterAvailable}: ${(options.nativeStatuses ?? []).join(" ")}` : t.nativeFooterEmpty)}</div>
   </div>
   <div class="section">
-    <div class="title">border_slots</div>
+    <div class="title" data-i18n="border_slots">border_slots</div>
     <div class="grid">
-      <div><label>top_left</label>${select("top_left", slots.top_left, slotOptions)}</div>
-      <div><label>top_right</label>${select("top_right", slots.top_right, slotOptions)}</div>
-      <div><label>bottom_left</label>${select("bottom_left", slots.bottom_left, slotOptions)}</div>
-      <div><label>bottom_right</label>${select("bottom_right", slots.bottom_right, slotOptions)}</div>
+      <div><label data-i18n="top_left">top_left</label>${select("top_left_1", slotValues(slots.top_left)[0] ?? "", slotOptions)}${select(
+        "top_left_2",
+        slotValues(slots.top_left)[1] ?? "",
+        [
+          "",
+          ...slotOptions,
+        ],
+      )}</div>
+      <div><label data-i18n="top_right">top_right</label>${select("top_right_1", slotValues(slots.top_right)[0] ?? "", slotOptions)}${select(
+        "top_right_2",
+        slotValues(slots.top_right)[1] ?? "",
+        [
+          "",
+          ...slotOptions,
+        ],
+      )}</div>
+      <div><label data-i18n="bottom_left">bottom_left</label>${select("bottom_left_1", slotValues(slots.bottom_left)[0] ?? "", slotOptions)}${select(
+        "bottom_left_2",
+        slotValues(slots.bottom_left)[1] ?? "",
+        [
+          "",
+          ...slotOptions,
+        ],
+      )}</div>
+      <div><label data-i18n="bottom_right">bottom_right</label>${select("bottom_right_1", slotValues(slots.bottom_right)[0] ?? "", slotOptions)}${select(
+        "bottom_right_2",
+        slotValues(slots.bottom_right)[1] ?? "",
+        [
+          "",
+          ...slotOptions,
+        ],
+      )}</div>
     </div>
   </div>
   <div class="section">
-    <div class="title">footer_layout</div>
+    <div class="title" data-i18n="footer_layout">footer_layout</div>
     <div id="layoutRows"></div>
-    <button id="addRow" class="secondary" type="button">${t.addRow}</button>
+    <button id="addRow" class="secondary" type="button" data-i18n="addRow">${t.addRow}</button>
     <div id="layoutErr"></div>
+    <div id="feedback" class="legal" role="status" aria-live="polite"></div>
   </div>
   <div class="section">
-    <div class="title">${t.preview}</div>
+    <div class="title" data-i18n="preview">${t.preview}</div>
     <div id="preview"></div>
     <div id="occupancy"></div>
   </div>
 </div>
 <div id="sourceTab" class="tab-panel">
   <div class="section" style="margin-top:0">
-    <div class="title">${t.completeYml}</div>
+    <div class="title" data-i18n="completeYml">${t.completeYml}</div>
     <textarea id="yaml_source" spellcheck="false">${sourceText}</textarea>
     <div id="sourceErr"></div>
-    <button id="insertTemplate" class="secondary" type="button">${t.insertTemplate}</button>
+    <button id="insertTemplate" class="secondary" type="button" data-i18n="insertTemplate">${t.insertTemplate}</button>
   </div>
   <div class="section">
-    <div class="title">${t.parameterReference(PARAMETER_IDS.length)}</div>
+    <div class="title" data-i18n="parameterReference">${t.parameterReference(PARAMETER_IDS.length)}</div>
     <div class="ref">${reference}</div>
     <div class="legal">${e(legalValues)}</div>
   </div>
   <div class="section">
-    <div class="title">${t.sourcePreview}</div>
+    <div class="title" data-i18n="sourcePreview">${t.sourcePreview}</div>
     <div id="sourcePreview"></div>
   </div>
 </div>
 <div class="actions">
-  <button id="cancel" type="button">${t.cancel}</button>
-  ${liveApply ? `<button id="apply" type="button">${t.apply}</button>` : ""}
-  <button id="save" type="button" class="primary">${t.save}</button>
+  <button id="cancel" type="button" data-i18n="cancel">${t.cancel}</button>
+  ${liveApply ? `<button id="apply" type="button" data-i18n="apply">${t.apply}</button>` : ""}
+  <button id="save" type="button" class="primary" data-i18n="save">${t.save}</button>
 </div>
 <script>
 (function () {
@@ -525,18 +635,51 @@ export function buildPanelHtml(
   var PARAMETER_IDS = ${JSON.stringify(PARAMETER_IDS)};
   var activeTab = "formTab";
   var layoutRows = ${JSON.stringify(config.footer_layout)};
+  var PANEL_TEXT = ${panelText};
+  var NATIVE_STATUSES = ${JSON.stringify(options.nativeStatuses ?? [])};
   var TXT = ${JSON.stringify({
     addItem: t.addItem,
     occupancyEmpty: t.occupancyEmpty,
     occupancyUsed: t.occupancyUsed,
     sourcePreviewPartial: t.sourcePreviewPartial,
   })};
+  function showFeedback(message, ok) {
+    var feedback = el("feedback");
+    feedback.textContent = message;
+    feedback.style.color = ok ? "var(--accent)" : "var(--error)";
+  }
+  function refreshLanguage() {
+    var text = PANEL_TEXT[val("lang")];
+    Array.prototype.forEach.call(document.querySelectorAll("[data-i18n]"), function (node) {
+      var key = node.getAttribute("data-i18n");
+      if (key === "title") node.textContent = text.panelLabels.title;
+      else if (key === "parameterReference") node.textContent = text.panelLabels.parameterReference;
+      else if (key && text[key]) node.textContent = text[key];
+      else if (key && text.panelLabels[key]) node.textContent = text.panelLabels[key];
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-param-description]"), function (node) {
+      var id = node.getAttribute("data-param-description");
+      if (id && text.paramDescriptions[id]) node.textContent = text.paramDescriptions[id];
+    });
+    TXT.addItem = text.addItem;
+    TXT.occupancyEmpty = text.occupancyEmpty;
+    TXT.occupancyUsed = text.occupancyUsed;
+    TXT.sourcePreviewPartial = text.sourcePreviewPartial;
+    renderRows();
+    renderPreview();
+    if (activeTab === "sourceTab") renderSourcePreview();
+  }
   function el(id) { return document.getElementById(id); }
   function val(id) { return el(id).value; }
   function num(id) { return Number(val(id)); }
   function checked(id) { return el(id).checked; }
   function occupied() {
-    var slots = [val("top_left"), val("top_right"), val("bottom_left"), val("bottom_right")];
+    var slots = [
+      val("top_left_1"), val("top_left_2"),
+      val("top_right_1"), val("top_right_2"),
+      val("bottom_left_1"), val("bottom_left_2"),
+      val("bottom_right_1"), val("bottom_right_2"),
+    ];
     var set = {};
     slots.forEach(function (id) { if (id && id !== "none") set[id] = true; });
     return set;
@@ -687,10 +830,10 @@ export function buildPanelHtml(
       if (id && id !== "none") occupiedIds[id] = true;
     });
     var lines = [];
-    var topLeft = slots.top_left === "none" ? "" : (slots.top_left || "");
-    var topRight = slots.top_right === "none" ? "" : (slots.top_right || "");
-    var bottomLeft = slots.bottom_left === "none" ? "" : (slots.bottom_left || "");
-    var bottomRight = slots.bottom_right === "none" ? "" : (slots.bottom_right || "");
+    var topLeft = [slots.top_left_1, slots.top_left_2].filter(Boolean).join(" ");
+    var topRight = [slots.top_right_1, slots.top_right_2].filter(Boolean).join(" ");
+    var bottomLeft = [slots.bottom_left_1, slots.bottom_left_2].filter(Boolean).join(" ");
+    var bottomRight = [slots.bottom_right_1, slots.bottom_right_2].filter(Boolean).join(" ");
     lines.push(topLeft + new Array(24).join(" ") + topRight);
     lines.push("");
     effectiveRows(rows, occupiedIds).forEach(function (row) {
@@ -700,8 +843,12 @@ export function buildPanelHtml(
     lines.push("");
     lines.push(bottomLeft + new Array(24).join(" ") + bottomRight);
     return lines.join("\\n");
-  }
-  function slotValues() { return { top_left: val("top_left"), top_right: val("top_right"), bottom_left: val("bottom_left"), bottom_right: val("bottom_right") }; }
+  function slotValues() { return {
+    top_left: [val("top_left_1"), val("top_left_2")].filter(Boolean),
+    top_right: [val("top_right_1"), val("top_right_2")].filter(Boolean),
+    bottom_left: [val("bottom_left_1"), val("bottom_left_2")].filter(Boolean),
+    bottom_right: [val("bottom_right_1"), val("bottom_right_2")].filter(Boolean),
+  }; }
   function renderPreview() {
     var rows = readLayout();
     var err = el('layoutErr');
@@ -732,14 +879,21 @@ export function buildPanelHtml(
     if (tab === "sourceTab") renderSourcePreview();
   }
   ["formTabButton", "sourceTabButton"].forEach(function (id) { el(id).addEventListener("click", function () { switchTab(el(id).getAttribute("data-tab")); }); });
-  ["lang", "style", "density", "editor_padding", "cwd_path_mode", "git_branch_mode"].forEach(function (id) { el(id).addEventListener("change", renderPreview); });
-  ["context_warn", "context_alert", "context_danger", "show_icons", "show_labels", "top_left", "top_right", "bottom_left", "bottom_right"].forEach(function (id) { el(id).addEventListener("input", renderPreview); });
+  el("lang").addEventListener("change", refreshLanguage);
+  ["style", "density", "editor_padding", "cwd_path_mode", "git_branch_mode"].forEach(function (id) { el(id).addEventListener("change", renderPreview); });
+  ["context_warn", "context_alert", "context_danger", "show_icons", "show_labels", "native_footer", "top_left_1", "top_left_2", "top_right_1", "top_right_2", "bottom_left_1", "bottom_left_2", "bottom_right_1", "bottom_right_2"].forEach(function (id) { el(id).addEventListener("input", renderPreview); });
+  PARAMETER_IDS.forEach(function (id) { el("icon_" + id).addEventListener("change", renderPreview); });
+  PARAMETER_IDS.forEach(function (id) { el("label_" + id).addEventListener("input", renderPreview); });
   el("addRow").addEventListener("click", function () { layoutRows.push({ separator: "slash", items: ["git_branch"] }); renderRows(); renderPreview(); });
   el("yaml_source").addEventListener("input", renderSourcePreview);
   el("insertTemplate").addEventListener("click", function () { el("yaml_source").value = TEMPLATE; renderSourcePreview(); el("yaml_source").focus(); });
   function closePanel() {
     if (window.glimpse && typeof window.glimpse.close === "function") window.glimpse.close();
   }
+  window.addEventListener("message", function (event) {
+    var data = event.data || {};
+    if (data.type === "apply-result") showFeedback(data.message, data.ok === true);
+  });
   function sendAction(action) {
     if (!window.glimpse || typeof window.glimpse.send !== "function") return;
     if (activeTab === "sourceTab") window.glimpse.send({ action: action, rawYaml: val("yaml_source") });
@@ -753,8 +907,11 @@ export function buildPanelHtml(
       lang: val('lang'), style: val('style'), density: val('density'), editor_padding: val('editor_padding'),
       cwd_path_mode: val('cwd_path_mode'), git_branch_mode: val('git_branch_mode'),
       show_icons: checked('show_icons'), show_labels: checked('show_labels'),
+      native_footer: checked('native_footer'),
+      icons: Object.fromEntries(PARAMETER_IDS.map(function (id) { return [id, val('icon_' + id)]; }).filter(function (entry) { return entry[1] !== ''; })),
+      labels: Object.fromEntries(PARAMETER_IDS.map(function (id) { return [id, val('label_' + id)]; }).filter(function (entry) { return entry[1] !== ''; })),
       thresholds: { context_warn: num('context_warn'), context_alert: num('context_alert'), context_danger: num('context_danger') },
-      border_slots: { top_left: val('top_left'), top_right: val('top_right'), bottom_left: val('bottom_left'), bottom_right: val('bottom_right') },
+      border_slots: slotValues(),
       footer_layout: readLayout(),
     };
   }
@@ -768,10 +925,13 @@ export function buildPanelHtml(
 </body>
 </html>`;
 }
-
 export interface PanelDeps {
   load?: GlimpseLoader;
-  onApply?: (result: SavedPanelResult) => void;
+  nativeStatuses?: readonly string[];
+  onApply?: (
+    result: SavedPanelResult,
+    respond?: (message: { ok: boolean; message: string }) => void,
+  ) => void;
 }
 
 const PANEL_WINDOW = {
@@ -840,7 +1000,12 @@ function openLivePanel(
       const parsed = asPanelPayload(args[0]);
       if (parsed === null) return;
       if (parsed.action === "apply") {
-        onApply?.(parsed.saved);
+        onApply?.(parsed.saved, (feedback) =>
+          win.send?.({
+            type: "apply-result",
+            ...feedback,
+          }),
+        );
         return;
       }
       finish(parsed.saved);

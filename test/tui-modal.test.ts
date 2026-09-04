@@ -60,6 +60,31 @@ describe("buildModalLines (TUI fallback)", () => {
       "已嵌入边框: git_branch, cwd_path。footer 中的重复项将隐藏。",
     );
   });
+  test("shows multi-slot, native footer, and context token state", () => {
+    const text = buildModalLines(
+      {
+        ...structuredClone(DEFAULT_CONFIG),
+        native_footer: true,
+        border_slots: {
+          ...structuredClone(DEFAULT_CONFIG.border_slots),
+          top_left: [
+            "git_branch",
+            "model_name",
+          ],
+        },
+      },
+      {
+        contextTokens: 12_000,
+        contextWindow: 1_000_000,
+        nativeStatuses: [
+          "● plugin:on",
+        ],
+      },
+    ).join("\n");
+    expect(text).toContain("左上 git_branch, model_name");
+    expect(text).toContain("native footer: ● plugin:on");
+    expect(text).toContain("context tokens: 12.0k/1.0M");
+  });
 });
 
 describe("openTuiModal fallback mock", () => {

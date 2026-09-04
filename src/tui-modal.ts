@@ -9,8 +9,9 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Component, KeybindingsManager, TUI } from "@earendil-works/pi-tui";
 import { matchesKey } from "@earendil-works/pi-tui";
-import type { MinifooterConfig } from "./config.js";
+import { type MinifooterConfig, slotValues } from "./config.js";
 import { footerLayoutToText, UI_TEXT } from "./panel.js";
+import { formatContextTokens } from "./segments.js";
 
 const SLOT_ORDER = [
   "top_left",
@@ -24,24 +25,45 @@ function occupancyHint(
   slots: MinifooterConfig["border_slots"],
 ): string {
   const t = UI_TEXT[lang];
-  const used = SLOT_ORDER.map((key) => slots[key]).filter((id) => id !== "none");
+  const used = SLOT_ORDER.flatMap((key) => slotValues(slots[key])).filter(
+    (id) => id !== "none",
+  );
   return used.length > 0
     ? t.occupancyUsed.replace("__USED__", used.join(", "))
     : t.occupancyEmpty;
 }
 
 /** 当前配置 → 只读 modal 行(纯函数, 可单测) */
-export function buildModalLines(config: MinifooterConfig): string[] {
+export function buildModalLines(
+  config: MinifooterConfig,
+  options: {
+    contextTokens?: number | null;
+    contextWindow?: number | null;
+    nativeStatuses?: readonly string[];
+  } = {},
+): string[] {
   const slots = config.border_slots;
   const t = UI_TEXT[config.lang];
   const L = t.modalLabels;
+  let nativeFooterLine = "native footer: disabled";
+  if (config.native_footer) {
+    nativeFooterLine = options.nativeStatuses?.length
+      ? `native footer: ${options.nativeStatuses.join(" ")}`
+      : "native footer: none";
+  }
   return [
     "xpi-minifooter",
     "",
-    `${L.lang}: ${config.lang}  ${L.density}: ${config.density}  ${L.icons}: ${config.show_icons ? L.on : L.off}  ${L.labels}: ${config.show_labels ? L.on : L.off}`,
+    `${L.lang}: ${config.lang}  ${L.density}: ${config.density}  ${L.icons}: ${config.show_icons ? L.on : L.off}  ${L.labels}: ${config.show_labels ? L.on : L.off}  native_footer: ${config.native_footer ? L.on : L.off}`,
     `${L.cwd}: ${config.cwd_path_mode}  ${L.git}: ${config.git_branch_mode}  ${L.editor_padding}: ${config.editor_padding}`,
     `${L.thresholds}: ${L.warn} ${config.thresholds.context_warn} / ${L.alert} ${config.thresholds.context_alert} / ${L.danger} ${config.thresholds.context_danger}`,
-    `${L.slots}: ${L.tl} ${slots.top_left} · ${L.tr} ${slots.top_right} · ${L.bl} ${slots.bottom_left} · ${L.br} ${slots.bottom_right}`,
+    `${L.slots}: ${L.tl} ${slotValues(slots.top_left).join(", ")} · ${L.tr} ${slotValues(slots.top_right).join(", ")} · ${L.bl} ${slotValues(slots.bottom_left).join(", ")} · ${L.br} ${slotValues(slots.bottom_right).join(", ")}`,
+    options.contextTokens !== null &&
+    options.contextTokens !== undefined &&
+    options.contextWindow
+      ? `context tokens: ${formatContextTokens(options.contextTokens, options.contextWindow)}`
+      : "context tokens: ~",
+    nativeFooterLine,
     occupancyHint(config.lang, slots),
     ...footerLayoutToText(config.footer_layout)
       .split("\n")
@@ -99,7 +121,15 @@ export async function openTuiModal(
           invalidate(): void {},
           render(width: number): string[] {
             void tui;
-            const lines = buildModalLines(config);
+            const usage =
+              typeof ctx.getContextUsage === "function"
+                ? ctx.getContextUsage()
+                : undefined;
+            const lines = buildModalLines(config, {
+              contextTokens: usage?.tokens,
+              contextWindow: usage?.contextWindow,
+              nativeStatuses: [],
+            });
             const inner = Math.max(20, width - 4);
             const top = `┌${"─".repeat(inner)}┐`;
             const bottom = `└${"─".repeat(inner)}┘`;

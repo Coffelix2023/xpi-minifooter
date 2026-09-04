@@ -38,7 +38,8 @@ describe("buildPanelHtml", () => {
       "bottom_left",
       "bottom_right",
     ]) {
-      expect(html).toContain(`id="${slot}"`);
+      expect(html).toContain(`id="${slot}_1"`);
+      expect(html).toContain(`id="${slot}_2"`);
     }
     expect(html).toContain('id="layoutRows"');
     expect(html).toContain('id="addRow"');
@@ -51,9 +52,11 @@ describe("buildPanelHtml", () => {
       ".actions { display: flex; gap: 8px; justify-content: flex-end; position: fixed; bottom: 0; left: 0; right: 0;",
     );
     expect(html).toContain("padding: 16px 20px 64px");
-    expect(html).toContain('<button id="cancel" type="button">Cancel</button>');
     expect(html).toContain(
-      '<button id="save" type="button" class="primary">Save</button>',
+      '<button id="cancel" type="button" data-i18n="cancel">Cancel</button>',
+    );
+    expect(html).toContain(
+      '<button id="save" type="button" class="primary" data-i18n="save">Save</button>',
     );
   });
 
@@ -63,7 +66,50 @@ describe("buildPanelHtml", () => {
       buildPanelHtml(enConfig(), {
         liveApply: true,
       }),
-    ).toContain('<button id="apply" type="button">Apply</button>');
+    ).toContain('<button id="apply" type="button" data-i18n="apply">Apply</button>');
+  });
+  test("embeds both languages and refreshes marked content on lang change", () => {
+    const html = buildPanelHtml(enConfig(), {
+      liveApply: true,
+    });
+    expect(html).toContain('var PANEL_TEXT = {"en"');
+    expect(html).toContain('data-i18n="apply"');
+    expect(html).toContain('data-param-description="context_bar"');
+    expect(html).toContain('el("lang").addEventListener("change", refreshLanguage)');
+    expect(html).toContain("node.textContent = text.panelLabels.parameterReference");
+    expect(html).toContain("输入与输出 token 数量");
+  });
+
+  test("shows in-panel Apply feedback without closing the window", () => {
+    const html = buildPanelHtml(enConfig(), {
+      liveApply: true,
+    });
+    expect(html).toContain('id="feedback"');
+    expect(html).toContain('type === "apply-result"');
+    expect(html).toContain('window.addEventListener("message"');
+  });
+
+  test("renders custom label inputs with escaped values", () => {
+    const html = buildPanelHtml({
+      ...structuredClone(DEFAULT_CONFIG),
+      labels: {
+        git_branch: "<Branch>",
+      },
+    });
+    expect(html).toContain('id="label_git_branch"');
+    expect(html).toContain('value="&lt;Branch&gt;"');
+    expect(html).toContain("labels: Object.fromEntries");
+  });
+
+  test("renders native footer as an independent toggle and status area", () => {
+    const html = buildPanelHtml(enConfig(), {
+      nativeStatuses: [
+        "● plugin:on",
+      ],
+    });
+    expect(html).toContain('id="native_footer"');
+    expect(html).toContain("native footer status: available: ● plugin:on");
+    expect(html).toContain('var NATIVE_STATUSES = ["● plugin:on"]');
   });
   test("escapes interpolated config values", () => {
     const html = buildPanelHtml(DEFAULT_CONFIG);
@@ -259,6 +305,54 @@ describe("panel save boundary", () => {
     expect(applied[0]).toMatchObject({
       density: "compact",
     });
+  });
+
+  test("reports validation and save failures to the panel responder", () => {
+    const feedback: {
+      ok: boolean;
+      message: string;
+    }[] = [];
+    const invalid = structuredClone(DEFAULT_CONFIG);
+    invalid.density = "invalid" as never;
+    expect(
+      applyPanelConfig(
+        {
+          applyConfig: () => {},
+        },
+        {
+          config: invalid,
+          outcome: "saved",
+        },
+        () => {},
+        {
+          path: "/tmp/minifooter.yml",
+          save: () => {},
+        },
+        (message) => feedback.push(message),
+      ),
+    ).toBe(false);
+    expect(feedback[0]?.ok).toBe(false);
+
+    expect(
+      applyPanelConfig(
+        {
+          applyConfig: () => {},
+        },
+        {
+          config: DEFAULT_CONFIG,
+          outcome: "saved",
+        },
+        () => {},
+        {
+          path: "/tmp/minifooter.yml",
+          save: () => {
+            throw new Error("disk full");
+          },
+        },
+        (message) => feedback.push(message),
+      ),
+    ).toBe(false);
+    expect(feedback[1]?.ok).toBe(false);
   });
 
   test("invalid form config is visible and does not save or apply", () => {
@@ -595,7 +689,9 @@ describe("openGlimpsePanel", () => {
         }, calls),
       onApply: (payload) => applied.push(payload),
     });
-    expect(calls[0]?.html).toContain('<button id="apply" type="button">Apply</button>');
+    expect(calls[0]?.html).toContain(
+      '<button id="apply" type="button" data-i18n="apply">Apply</button>',
+    );
     expect(applied).toEqual([
       {
         config: cfg,

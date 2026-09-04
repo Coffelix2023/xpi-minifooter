@@ -6,6 +6,7 @@ import type { SessionUsage } from "../src/segments.js";
 import {
   addEditorPadding,
   aggregateUsage,
+  buildBorderSegments,
   buildFooterRows,
   type RuntimeDeps,
   renderSegment,
@@ -381,6 +382,48 @@ describe("border slot gating", () => {
     };
     expect(shouldInstallEditor(slots)).toBe(false);
   });
+});
+
+test("combines two parameters in one border slot", () => {
+  const config = fakeConfig({
+    border_slots: {
+      ...structuredClone(DEFAULT_CONFIG.border_slots),
+      top_left: [
+        "model_id",
+        "provider",
+      ],
+    },
+  });
+  const result = buildBorderSegments(
+    config,
+    {
+      branchName: null,
+      contextPct: null,
+      cwd: "/tmp/project",
+      elapsedSeconds: null,
+      home: "/tmp",
+      mcpCount: 0,
+      modelNames: {},
+      nativeStatuses: [],
+      skillCount: 0,
+      thinkingLevel: null,
+      model: {
+        id: "gpt-test",
+        name: "GPT Test",
+        provider: "openai",
+      },
+      usage: {
+        costTotal: null,
+        hasTurn: false,
+        inputTokens: 0,
+        outputTokens: 0,
+      },
+    },
+    120,
+    () => null,
+  );
+  expect(result.top_left?.text).toContain("gpt-test");
+  expect(result.top_left?.text).toContain("openai");
 });
 
 // ─── inputs/usage 形状兜底 ───────────────────────────────────────────────────

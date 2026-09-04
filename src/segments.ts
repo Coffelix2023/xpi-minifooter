@@ -56,7 +56,10 @@ export function validateParameterIds(ids: readonly string[]): ParameterId[] | nu
   return out;
 }
 
-// ─── 2.2 model_name ─────────────────────────────────────────────────────────
+/** Context tokens formatted for compact status text. */
+export function formatContextTokens(used: number, max: number): string {
+  return `${formatTokenCount(used)}/${formatTokenCount(max)}`;
+}
 
 /** models.json 中我们唯一关心的形状; 绝不读 apiKey/headers */
 interface ModelsJsonSnapshot {
@@ -335,13 +338,19 @@ export function resolveContextBar(
   pct: number | null,
   _t: Thresholds,
   useAscii: boolean,
+  tokens: number | null = null,
+  contextWindow: number | null = null,
 ): string | null {
-  if (pct === null) return useAscii ? "~%" : "~%";
+  if (pct === null) return "~%";
   const clamped = Math.min(100, Math.max(0, pct));
   const filled = Math.round((clamped / 100) * BAR_WIDTH);
   const f = useAscii ? BAR_FILLED_ASCII : BAR_FILLED;
   const e = useAscii ? BAR_EMPTY_ASCII : BAR_EMPTY;
-  return `${f.repeat(filled)}${e.repeat(BAR_WIDTH - filled)} ${Math.round(clamped)}%`;
+  const tokenText =
+    tokens !== null && contextWindow !== null && contextWindow > 0
+      ? ` ${formatContextTokens(tokens, contextWindow)}`
+      : "";
+  return `${f.repeat(filled)}${e.repeat(BAR_WIDTH - filled)} ${Math.round(clamped)}%${tokenText}`;
 }
 
 /** context_compact 段: 纯百分比;未知窗口 → `~` 标记 */
@@ -416,6 +425,13 @@ export const SEGMENT_ICONS: Partial<Record<ParameterId, string>> = {
   thinking_mode: "\uF0EB",
   tokens: "",
 };
+export const ICON_CANDIDATES = [
+  "",
+  "•",
+  "◆",
+  "▸",
+  "★",
+] as const;
 
 /** show_labels=true 时的本地化前缀(冒号内含) */
 export const SEGMENT_LABELS: Partial<
@@ -450,13 +466,22 @@ export function decorateSegment(
   id: ParameterId,
   text: string | null,
   opts: {
+    icons?: Partial<Record<ParameterId, string>>;
+    labels?: Partial<Record<ParameterId, string>>;
     lang: "zh" | "en";
     show_icons: boolean;
     show_labels: boolean;
   },
 ): string | null {
   if (text === null) return null;
-  const icon = opts.show_icons ? (SEGMENT_ICONS[id] ?? "") : "";
+  let icon = "";
+  if (opts.show_icons) {
+    const override = opts.icons?.[id];
+    const valid =
+      override !== undefined &&
+      ICON_CANDIDATES.includes(override as (typeof ICON_CANDIDATES)[number]);
+    icon = valid ? override : SEGMENT_ICONS[id] || "";
+  }
   const label = opts.show_labels ? (SEGMENT_LABELS[id]?.[opts.lang] ?? "") : "";
   const prefix = [
     icon,

@@ -48,7 +48,9 @@ describe("config schema (task 1.2)", () => {
     const config = parseConfig(yaml);
     expect(config).not.toBeNull();
     expect(config?.lang).toBe("en");
-    expect(config?.border_slots.top_left).toBe("context_bar");
+    expect(config?.border_slots.top_left).toEqual([
+      "context_bar",
+    ]);
     expect(config?.footer_layout[0]?.separator).toBe("dot");
   });
   test("editor padding defaults to default and parses relaxed", () => {
@@ -68,11 +70,47 @@ describe("config schema (task 1.2)", () => {
     const config = parseConfig(
       "border_slots: { top_left: git_branch }\nfooter_layout:\n  - items: [git_branch, cwd_path]",
     );
-    expect(config?.border_slots.top_left).toBe("git_branch");
+    expect(config?.border_slots.top_left).toEqual([
+      "git_branch",
+    ]);
     expect(config?.footer_layout[0]?.items).toEqual([
       "git_branch",
       "cwd_path",
     ]);
+  });
+
+  test("parses two border parameters and rejects more than two", () => {
+    expect(
+      parseConfig(
+        "border_slots:\n  top_left: [git_branch, cwd_path]\n  top_right: none",
+      )?.border_slots.top_left,
+    ).toEqual([
+      "git_branch",
+      "cwd_path",
+    ]);
+    expect(
+      parseConfig("border_slots:\n  top_left: [git_branch, cwd_path, model_name]"),
+    ).toBeNull();
+  });
+
+  test("fills icon and label defaults and accepts custom parameter text", () => {
+    expect(DEFAULT_CONFIG.icons).toEqual({});
+    expect(DEFAULT_CONFIG.labels).toEqual({});
+    expect(
+      parseConfig("icons: { git_branch: '' }\nlabels: { git_branch: Branch }"),
+    ).toMatchObject({
+      icons: {
+        git_branch: "",
+      },
+      labels: {
+        git_branch: "Branch",
+      },
+    });
+  });
+
+  test("rejects unknown or oversized icon and label values", () => {
+    expect(parseConfig("icons: { unknown: icon }")).toBeNull();
+    expect(parseConfig(`labels: { git_branch: "${"x".repeat(65)}" }`)).toBeNull();
   });
 
   test("invalid yaml returns null", () => {
