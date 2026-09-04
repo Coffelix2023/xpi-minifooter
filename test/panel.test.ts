@@ -84,28 +84,14 @@ describe("buildPanelHtml", () => {
     ).toContain('<button id="apply" type="button" data-i18n="apply">Apply</button>');
   });
 
-  test("closes .checks before icons section and maintains form section hierarchy", () => {
+  test("removes legacy labels and icons sections", () => {
     const html = buildPanelHtml(DEFAULT_CONFIG);
-    const checksIndex = html.indexOf('<div class="checks">');
-    const iconsIndex = html.indexOf('<div class="title">icons</div>');
-    expect(checksIndex).toBeGreaterThan(-1);
-    expect(iconsIndex).toBeGreaterThan(checksIndex);
-
-    const checksSnippet = html.slice(checksIndex, iconsIndex);
-    expect(checksSnippet).toContain('id="show_icons"');
-    expect(checksSnippet).toContain('id="show_labels"');
-    expect(checksSnippet).toContain('id="native_footer"');
-    expect(checksSnippet).toContain("</div>");
-
-    const labelsIndex = html.indexOf('<div class="title">labels</div>');
-    const nativeFooterIndex = html.indexOf('id="nativeFooterStatus"');
-    const borderSlotsIndex = html.indexOf('data-i18n="border_slots"');
-    const footerLayoutIndex = html.indexOf('data-i18n="footer_layout"');
-
-    expect(labelsIndex).toBeGreaterThan(iconsIndex);
-    expect(nativeFooterIndex).toBeGreaterThan(labelsIndex);
-    expect(borderSlotsIndex).toBeGreaterThan(nativeFooterIndex);
-    expect(footerLayoutIndex).toBeGreaterThan(borderSlotsIndex);
+    expect(html).not.toContain('<div class="title">icons</div>');
+    expect(html).not.toContain('<div class="title">labels</div>');
+    expect(html).not.toContain('id="native_footer"');
+    expect(html).toContain('id="nativeLayoutRows"');
+    expect(html).toContain("var nativeLayoutRows = []");
+    expect(html).toContain("function renderLayoutRows(rows, wrapId, native)");
   });
   test("embeds both languages and refreshes marked content on lang change", () => {
     const html = buildPanelHtml(enConfig(), {
@@ -128,25 +114,43 @@ describe("buildPanelHtml", () => {
     expect(html).toContain('window.addEventListener("message"');
   });
 
-  test("renders custom label inputs with escaped values", () => {
+  test("renders showIcon controls and native footer layout editor", () => {
     const html = buildPanelHtml({
       ...structuredClone(DEFAULT_CONFIG),
-      labels: {
-        git_branch: "<Branch>",
-      },
+      footer_layout: [
+        {
+          separator: "slash",
+          items: [
+            {
+              id: "git_branch",
+              showIcon: false,
+            },
+          ],
+        },
+      ],
+      native_footer_layout: [
+        {
+          separator: "dot",
+          items: [
+            "native_footer",
+          ],
+        },
+      ],
     });
-    expect(html).toContain('id="label_git_branch"');
-    expect(html).toContain('value="&lt;Branch&gt;"');
-    expect(html).toContain("labels: Object.fromEntries");
+    expect(html).toContain("data-show-icon");
+    expect(html).toContain("> showIcon</label>");
+    expect(html).toContain('id="nativeLayoutRows"');
+    expect(html).toContain("native_footer_layout: readLayout(nativeLayoutRows)");
   });
 
-  test("renders native footer as an independent toggle and status area", () => {
+  test("renders native footer status and layout editor", () => {
     const html = buildPanelHtml(enConfig(), {
       nativeStatuses: [
         "● plugin:on",
       ],
     });
-    expect(html).toContain('id="native_footer"');
+    expect(html).not.toContain('id="native_footer"');
+    expect(html).toContain('id="nativeLayoutRows"');
     expect(html).toContain("native footer status: available: ● plugin:on");
     expect(html).toContain('var NATIVE_STATUSES = ["● plugin:on"]');
   });
@@ -169,6 +173,21 @@ describe("buildPanelHtml", () => {
     expect(text).toBe(
       "- separator: slash\n  items: [git_branch, cwd_path, model_name, thinking_mode]\n- separator: slash\n  items: [context_bar, tokens, cost, session_time]",
     );
+  });
+  test("footerLayoutToText preserves showIcon object items", () => {
+    const layout: MinifooterConfig["footer_layout"] = [
+      {
+        separator: "dot",
+        items: [
+          {
+            id: "model_name",
+            showIcon: false,
+          },
+          "tokens",
+        ],
+      },
+    ];
+    expect(parseFooterLayoutText(footerLayoutToText(layout)).rows).toEqual(layout);
   });
 });
 
@@ -264,7 +283,7 @@ describe("panel command config refresh", () => {
     expect(applied[0]).toMatchObject({
       density: "compact",
     });
-    expect(notifications[0]).toContain("line 1");
+    expect(notifications[0]).toContain("invalid configuration values");
   });
 
   test("Save still applies once after the panel closes", async () => {

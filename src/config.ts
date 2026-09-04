@@ -59,104 +59,93 @@ const borderSlotsSchema = Type.Object({
   top_left: Type.Optional(borderSlotSchema),
   top_right: Type.Optional(borderSlotSchema),
 });
-const parameterTextSchema = Type.Object(
-  Object.fromEntries(
-    PARAMETER_IDS.map((id) => [
-      id,
-      Type.Optional(
-        Type.String({
-          maxLength: 64,
-        }),
-      ),
+const footerItemSchema = Type.Union([
+  ...PARAMETER_IDS.map((id) => Type.Literal(id)),
+  Type.Object({
+    id: Type.Union(PARAMETER_IDS.map((id) => Type.Literal(id))),
+    showIcon: Type.Optional(Type.Boolean()),
+  }),
+]);
+const footerLayoutRowSchema = Type.Object({
+  items: Type.Optional(Type.Array(footerItemSchema)),
+  separator: Type.Optional(
+    Type.Union([
+      Type.Literal("slash"),
+      Type.Literal("dot"),
+      Type.Literal("pipe"),
+      Type.Literal("space"),
     ]),
   ),
+});
+// 所有字段 Optional: 用户文件只写子集, 缺省由 DEFAULT_CONFIG 补齐(默认值在代码)
+export const configSchema = Type.Object(
+  {
+    border_slots: Type.Optional(borderSlotsSchema),
+    cwd_path_mode: Type.Optional(
+      Type.Union([
+        Type.Literal("basename"),
+        Type.Literal("relative"),
+        Type.Literal("full"),
+      ]),
+    ),
+    density: Type.Optional(
+      Type.Union([
+        Type.Literal("compact"),
+        Type.Literal("comfortable"),
+        Type.Literal("spacious"),
+      ]),
+    ),
+    editor_padding: Type.Optional(
+      Type.Union([
+        Type.Literal("default"),
+        Type.Literal("relaxed"),
+      ]),
+    ),
+    footer_layout: Type.Optional(Type.Array(footerLayoutRowSchema)),
+    git_branch_mode: Type.Optional(
+      Type.Union([
+        Type.Literal("mini"),
+        Type.Literal("default"),
+        Type.Literal("full"),
+      ]),
+    ),
+    lang: Type.Optional(
+      Type.Union([
+        Type.Literal("zh"),
+        Type.Literal("en"),
+      ]),
+    ),
+    native_footer_layout: Type.Optional(Type.Array(footerLayoutRowSchema)),
+    show_icons: Type.Optional(Type.Boolean()),
+    show_labels: Type.Optional(Type.Boolean()),
+    style: Type.Optional(Type.Literal("minimalist")),
+    thresholds: Type.Optional(
+      Type.Object({
+        context_alert: Type.Optional(
+          Type.Number({
+            maximum: 100,
+            minimum: 0,
+          }),
+        ),
+        context_danger: Type.Optional(
+          Type.Number({
+            maximum: 100,
+            minimum: 0,
+          }),
+        ),
+        context_warn: Type.Optional(
+          Type.Number({
+            maximum: 100,
+            minimum: 0,
+          }),
+        ),
+      }),
+    ),
+  },
   {
     additionalProperties: false,
   },
 );
-
-// 所有字段 Optional: 用户文件只写子集, 缺省由 DEFAULT_CONFIG 补齐(默认值在代码)
-export const configSchema = Type.Object({
-  border_slots: Type.Optional(borderSlotsSchema),
-  cwd_path_mode: Type.Optional(
-    Type.Union([
-      Type.Literal("basename"),
-      Type.Literal("relative"),
-      Type.Literal("full"),
-    ]),
-  ),
-  density: Type.Optional(
-    Type.Union([
-      Type.Literal("compact"),
-      Type.Literal("comfortable"),
-      Type.Literal("spacious"),
-    ]),
-  ),
-  editor_padding: Type.Optional(
-    Type.Union([
-      Type.Literal("default"),
-      Type.Literal("relaxed"),
-    ]),
-  ),
-  footer_layout: Type.Optional(
-    Type.Array(
-      Type.Object({
-        items: Type.Optional(
-          Type.Array(Type.Union(PARAMETER_IDS.map((id) => Type.Literal(id)))),
-        ),
-        separator: Type.Optional(
-          Type.Union([
-            Type.Literal("slash"),
-            Type.Literal("dot"),
-            Type.Literal("pipe"),
-            Type.Literal("space"),
-          ]),
-        ),
-      }),
-    ),
-  ),
-  git_branch_mode: Type.Optional(
-    Type.Union([
-      Type.Literal("mini"),
-      Type.Literal("default"),
-      Type.Literal("full"),
-    ]),
-  ),
-  icons: Type.Optional(parameterTextSchema),
-  labels: Type.Optional(parameterTextSchema),
-  lang: Type.Optional(
-    Type.Union([
-      Type.Literal("zh"),
-      Type.Literal("en"),
-    ]),
-  ),
-  native_footer: Type.Optional(Type.Boolean()),
-  show_icons: Type.Optional(Type.Boolean()),
-  show_labels: Type.Optional(Type.Boolean()),
-  style: Type.Optional(Type.Literal("minimalist")),
-  thresholds: Type.Optional(
-    Type.Object({
-      context_alert: Type.Optional(
-        Type.Number({
-          maximum: 100,
-          minimum: 0,
-        }),
-      ),
-      context_danger: Type.Optional(
-        Type.Number({
-          maximum: 100,
-          minimum: 0,
-        }),
-      ),
-      context_warn: Type.Optional(
-        Type.Number({
-          maximum: 100,
-          minimum: 0,
-        }),
-      ),
-    }),
-  ),
-});
 
 export interface MinifooterConfig {
   border_slots: Record<
@@ -167,14 +156,27 @@ export interface MinifooterConfig {
   density: "compact" | "comfortable" | "spacious";
   editor_padding: "default" | "relaxed";
   footer_layout: {
-    items: ParameterId[];
+    items: (
+      | ParameterId
+      | {
+          id: ParameterId;
+          showIcon?: boolean;
+        }
+    )[];
     separator: "slash" | "dot" | "pipe" | "space";
   }[];
   git_branch_mode: "mini" | "default" | "full";
-  icons: Partial<Record<ParameterId, string>>;
-  labels: Partial<Record<ParameterId, string>>;
   lang: "zh" | "en";
-  native_footer: boolean;
+  native_footer_layout: {
+    items: (
+      | ParameterId
+      | {
+          id: ParameterId;
+          showIcon?: boolean;
+        }
+    )[];
+    separator: "slash" | "dot" | "pipe" | "space";
+  }[];
   show_icons: boolean;
   show_labels: boolean;
   style: "minimalist";
@@ -190,10 +192,8 @@ export const DEFAULT_CONFIG: MinifooterConfig = {
   density: "comfortable",
   editor_padding: "default",
   git_branch_mode: "default",
-  icons: {},
-  labels: {},
   lang: "zh",
-  native_footer: true,
+  native_footer_layout: [],
   show_icons: true,
   show_labels: false,
   style: "minimalist",
@@ -293,6 +293,11 @@ export function parseConfigWithError(raw: string): ConfigParseResult {
         items: row.items ?? [],
         separator: row.separator ?? "slash",
       })) ?? structuredClone(DEFAULT_CONFIG.footer_layout),
+    native_footer_layout:
+      partial.native_footer_layout?.map((row) => ({
+        items: row.items ?? [],
+        separator: row.separator ?? "slash",
+      })) ?? structuredClone(DEFAULT_CONFIG.native_footer_layout),
     border_slots: {
       ...structuredClone(DEFAULT_CONFIG.border_slots),
       ...Object.fromEntries(
@@ -305,14 +310,6 @@ export function parseConfigWithError(raw: string): ConfigParseResult {
               ],
         ]),
       ),
-    },
-    icons: {
-      ...DEFAULT_CONFIG.icons,
-      ...partial.icons,
-    },
-    labels: {
-      ...DEFAULT_CONFIG.labels,
-      ...partial.labels,
     },
     thresholds: {
       ...DEFAULT_CONFIG.thresholds,

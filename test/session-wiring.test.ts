@@ -644,6 +644,99 @@ describe("SegmentInputs consumers", () => {
     );
   });
 
+  test("item showIcon=false overrides global icons", () => {
+    const inputs: SegmentInputs = {
+      branchName: "main",
+      contextPct: null,
+      cwd: "/tmp/project",
+      elapsedSeconds: null,
+      home: "/tmp",
+      mcpCount: 0,
+      model: undefined,
+      modelNames: {},
+      nativeStatuses: [],
+      skillCount: 0,
+      thinkingLevel: null,
+      usage: {
+        costTotal: null,
+        hasTurn: false,
+        inputTokens: 0,
+        outputTokens: 0,
+      },
+    };
+    const row = buildFooterRows(
+      fakeConfig({
+        footer_layout: [
+          {
+            items: [
+              {
+                id: "git_branch",
+                showIcon: false,
+              },
+            ],
+            separator: "space",
+          },
+        ],
+      }),
+      inputs,
+      120,
+      () => null,
+    );
+    expect(row[0]?.segments[0]?.text).toBe("main");
+  });
+
+  test("renders native footer layout as separate rows", () => {
+    const inputs: SegmentInputs = {
+      branchName: null,
+      contextPct: null,
+      cwd: "/tmp/project",
+      elapsedSeconds: null,
+      home: "/tmp",
+      mcpCount: 0,
+      model: undefined,
+      modelNames: {},
+      nativeStatuses: [
+        "● rtk:on",
+      ],
+      skillCount: 0,
+      thinkingLevel: null,
+      usage: {
+        costTotal: null,
+        hasTurn: false,
+        inputTokens: 0,
+        outputTokens: 0,
+      },
+    };
+    const rows = buildFooterRows(
+      fakeConfig({
+        footer_layout: [],
+        native_footer_layout: [
+          {
+            items: [
+              "native_footer",
+            ],
+            separator: "space",
+          },
+          {
+            items: [
+              "native_footer",
+            ],
+            separator: "dot",
+          },
+        ],
+      }),
+      inputs,
+      120,
+      () => null,
+    );
+    expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row.separator)).toEqual([
+      "space",
+      "dot",
+    ]);
+    expect(rows[0]?.segments[0]?.text).toContain("rtk:on");
+  });
+
   test("cwd_path uses populated context", () => {
     const config = fakeConfig({
       show_icons: false,

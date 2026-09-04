@@ -15,7 +15,6 @@ import {
   serializeConfig,
   slotValues,
 } from "./config.js";
-import { ICON_CANDIDATES } from "./segments.js";
 
 const ERROR_LINE_PATTERN = /line (\d+)/i;
 
@@ -89,10 +88,20 @@ export function escapeHtml(s: string): string {
     .replaceAll("'", "&#39;");
 }
 
-/** footer_layout 对象 → textarea 用的 YAML 片段(逐行 items/separator) */
-export function footerLayoutToText(layout: MinifooterConfig["footer_layout"]): string {
+/** footer layout 对象 → textarea 用的 YAML 片段(逐行 items/separator) */
+export function footerLayoutToText(
+  layout: MinifooterConfig["footer_layout"] | MinifooterConfig["native_footer_layout"],
+): string {
   return layout
-    .map((row) => `- separator: ${row.separator}\n  items: [${row.items.join(", ")}]`)
+    .map((row) => {
+      const items = row.items.map((item) => {
+        if (typeof item === "string") return item;
+        const showIcon =
+          item.showIcon === undefined ? "" : `, showIcon: ${item.showIcon}`;
+        return `{ id: ${item.id}${showIcon} }`;
+      });
+      return `- separator: ${row.separator}\n  items: [${items.join(", ")}]`;
+    })
     .join("\n");
 }
 
@@ -124,9 +133,24 @@ export function parseFooterLayoutText(raw: string): FooterLayoutParseResult {
       }
       return {
         items: row.items.filter(
-          (item): item is MinifooterConfig["footer_layout"][number]["items"][number] =>
-            typeof item === "string" &&
-            PARAMETER_IDS.includes(item as (typeof PARAMETER_IDS)[number]),
+          (
+            item,
+          ): item is MinifooterConfig["footer_layout"][number]["items"][number] => {
+            if (typeof item === "string")
+              return PARAMETER_IDS.includes(item as (typeof PARAMETER_IDS)[number]);
+            if (typeof item !== "object" || item === null || !("id" in item))
+              return false;
+            const candidate = item as {
+              id?: unknown;
+              showIcon?: unknown;
+            };
+            return (
+              typeof candidate.id === "string" &&
+              PARAMETER_IDS.includes(candidate.id as (typeof PARAMETER_IDS)[number]) &&
+              (candidate.showIcon === undefined ||
+                typeof candidate.showIcon === "boolean")
+            );
+          },
         ),
         separator: (row.separator ??
           "slash") as MinifooterConfig["footer_layout"][number]["separator"],
@@ -422,9 +446,6 @@ export function buildPanelHtml(
     "cwd_path_mode: basename | relative | full",
     "separator: slash | dot | pipe | space",
   ].join(" · ");
-  const iconOptions = [
-    ...ICON_CANDIDATES,
-  ];
   const select = (id: string, value: string, options: readonly string[]) =>
     selectHtml(id, value, options);
   return `<!DOCTYPE html>
@@ -545,16 +566,7 @@ export function buildPanelHtml(
     <div class="checks">
       <label><input id="show_icons" type="checkbox" ${config.show_icons ? "checked" : ""}> <span data-i18n="show_icons">show_icons</span></label>
       <label><input id="show_labels" type="checkbox" ${config.show_labels ? "checked" : ""}> <span data-i18n="show_labels">show_labels</span></label>
-      <label><input id="native_footer" type="checkbox" ${config.native_footer ? "checked" : ""}> <span data-i18n="native_footer">native_footer</span></label>
     </div>
-  </div>
-  <div class="section">
-    <div class="title">icons</div>
-    <div class="grid">${PARAMETER_IDS.map((id) => `<div><label>${id}</label>${select(`icon_${id}`, config.icons[id] ?? "", iconOptions)}</div>`).join("")}</div>
-  </div>
-  <div class="section">
-    <div class="title">labels</div>
-    <div class="grid">${PARAMETER_IDS.map((id) => `<div><label>${id}</label><input id="label_${id}" type="text" maxlength="64" value="${e(config.labels[id] ?? "")}"></div>`).join("")}</div>
   </div>
   <div id="nativeFooterStatus" class="legal">${e((options.nativeStatuses ?? []).length > 0 ? `${t.nativeFooterAvailable}: ${(options.nativeStatuses ?? []).join(" ")}` : t.nativeFooterEmpty)}</div>
   <div class="section">
@@ -602,6 +614,12 @@ export function buildPanelHtml(
     <div id="feedback" class="legal" role="status" aria-live="polite"></div>
   </div>
   <div class="section">
+    <div class="title">native_footer_layout</div>
+    <div id="nativeLayoutRows"></div>
+    <button id="addNativeRow" class="secondary" type="button" data-i18n="addRow">${t.addRow}</button>
+    <div id="nativeLayoutErr"></div>
+  </div>
+  <div class="section">
     <div class="title" data-i18n="preview">${t.preview}</div>
     <div id="preview"></div>
     <div id="occupancy"></div>
@@ -636,6 +654,7 @@ export function buildPanelHtml(
   var PARAMETER_IDS = ${JSON.stringify(PARAMETER_IDS)};
   var activeTab = "formTab";
   var layoutRows = ${JSON.stringify(config.footer_layout)};
+  var nativeLayoutRows = ${JSON.stringify(config.native_footer_layout)};
   var PANEL_TEXT = ${panelText};
   var NATIVE_STATUSES = ${JSON.stringify(options.nativeStatuses ?? [])};
   var TXT = ${JSON.stringify({
@@ -693,14 +712,17 @@ export function buildPanelHtml(
     var opts = options.map(function (o) { return '<option value="' + o + '"' + (o === value ? ' selected' : '') + '>' + o + '</option>'; }).join('');
     return '<select id="' + id + '">' + opts + '</select>';
   }
-  function renderRows() {
-    var wrap = el('layoutRows');
+  function renderLayoutRows(rows, wrapId, native) {
+    var wrap = el(wrapId);
     if (!wrap) return;
-    var html = layoutRows.map(function (row, ri) {
-      var sep = rowSelectHtml('row-sep-' + ri, row.separator, ['slash', 'dot', 'pipe', 'space']);
+    var html = rows.map(function (row, ri) {
+      var sep = rowSelectHtml((native ? 'native-' : '') + 'row-sep-' + ri, row.separator, ['slash', 'dot', 'pipe', 'space']);
       var items = row.items.map(function (item, ii) {
+        var id = typeof item === 'string' ? item : item.id;
+        var showIcon = typeof item === 'string' || item.showIcon !== false;
         return '<div class="row-item">' +
-          '<select id="row-item-' + ri + '-' + ii + '">' + PARAMETER_IDS.map(function (id) { return '<option value="' + id + '"' + (id === item ? ' selected' : '') + '>' + id + '</option>'; }).join('') + '</select>' +
+          '<select id="' + (native ? 'native-' : '') + 'row-item-' + ri + '-' + ii + '">' + PARAMETER_IDS.map(function (option) { return '<option value="' + option + '"' + (option === id ? ' selected' : '') + '>' + option + '</option>'; }).join('') + '</select>' +
+          '<label class="item-icon"><input type="checkbox" data-show-icon="' + ri + '-' + ii + '"' + (showIcon ? ' checked' : '') + '> showIcon</label>' +
           '<button type="button" class="secondary item-del" data-ri="' + ri + '" data-ii="' + ii + '">×</button>' +
         '</div>';
       }).join('');
@@ -716,39 +738,46 @@ export function buildPanelHtml(
     Array.prototype.forEach.call(wrap.querySelectorAll('.layout-row'), function (rowEl) {
       var ri = Number(rowEl.getAttribute('data-ri'));
       rowEl.querySelector('.row-sep select').addEventListener('change', function () {
-        layoutRows[ri].separator = rowEl.querySelector('.row-sep select').value;
+        rows[ri].separator = rowEl.querySelector('.row-sep select').value;
         renderPreview();
       });
       rowEl.querySelector('.row-del').addEventListener('click', function () {
-        layoutRows.splice(ri, 1);
-        renderRows();
+        rows.splice(ri, 1);
+        renderLayoutRows(rows, wrapId, native);
         renderPreview();
       });
-      rowEl.querySelector('[data-add-item]').addEventListener('click', function () { addItem(ri); });
+      rowEl.querySelector('[data-add-item]').addEventListener('click', function () { addItem(rows, ri, wrapId, native); });
       rowEl.querySelectorAll('.row-item').forEach(function (itemEl, ii) {
         itemEl.querySelector('select').addEventListener('change', function () {
-          layoutRows[ri].items[ii] = itemEl.querySelector('select').value;
+          var item = rows[ri].items[ii];
+          rows[ri].items[ii] = typeof item === 'string' ? itemEl.querySelector('select').value : { id: itemEl.querySelector('select').value, showIcon: item.showIcon };
+          renderPreview();
+        });
+        itemEl.querySelector('[data-show-icon]').addEventListener('change', function () {
+          var item = rows[ri].items[ii];
+          rows[ri].items[ii] = { id: typeof item === 'string' ? item : item.id, showIcon: itemEl.querySelector('[data-show-icon]').checked };
           renderPreview();
         });
         itemEl.querySelector('.item-del').addEventListener('click', function () {
-          layoutRows[ri].items.splice(ii, 1);
-          renderRows();
+          rows[ri].items.splice(ii, 1);
+          renderLayoutRows(rows, wrapId, native);
           renderPreview();
         });
       });
     });
   }
-  function addItem(ri) {
+  function renderRows() { renderLayoutRows(layoutRows, 'layoutRows', false); renderLayoutRows(nativeLayoutRows, 'nativeLayoutRows', true); }
+  function addItem(rows, ri, wrapId, native) {
     var used = {};
-    layoutRows[ri].items.forEach(function (id) { if (id) used[id] = true; });
+    rows[ri].items.forEach(function (item) { var id = typeof item === 'string' ? item : item.id; if (id) used[id] = true; });
     var free = PARAMETER_IDS.filter(function (id) { return !used[id]; });
     if (free.length === 0) return;
-    layoutRows[ri].items.push(free[0]);
-    renderRows();
+    rows[ri].items.push(free[0]);
+    renderLayoutRows(rows, wrapId, native);
     renderPreview();
   }
-  function readLayout() {
-    return layoutRows.map(function (row) {
+  function readLayout(rows) {
+    return (rows || layoutRows).map(function (row) {
       return { separator: row.separator, items: row.items };
     });
   }
@@ -823,9 +852,10 @@ export function buildPanelHtml(
     if ((text.charAt(0) === String.fromCharCode(34) && text.charAt(text.length - 1) === String.fromCharCode(34)) || (text.charAt(0) === "'" && text.charAt(text.length - 1) === "'")) return text.slice(1, -1);
     return text;
   }
+  function itemId(item) { return typeof item === 'string' ? item : item.id; }
   function effectiveRows(rows, slots) {
     return (rows || []).map(function (row) {
-      return { separator: row.separator || "slash", items: (row.items || []).filter(function (id) { return PARAMETER_IDS.indexOf(id) >= 0 && !slots[id]; }) };
+      return { separator: row.separator || "slash", items: (row.items || []).filter(function (item) { var id = itemId(item); return PARAMETER_IDS.indexOf(id) >= 0 && !slots[id]; }).map(itemId) };
     });
   }
   function previewText(rows, slots) {
@@ -887,10 +917,9 @@ export function buildPanelHtml(
   ["formTabButton", "sourceTabButton"].forEach(function (id) { el(id).addEventListener("click", function () { switchTab(el(id).getAttribute("data-tab")); }); });
   el("lang").addEventListener("change", refreshLanguage);
   ["style", "density", "editor_padding", "cwd_path_mode", "git_branch_mode"].forEach(function (id) { el(id).addEventListener("change", renderPreview); });
-  ["context_warn", "context_alert", "context_danger", "show_icons", "show_labels", "native_footer", "top_left_1", "top_left_2", "top_right_1", "top_right_2", "bottom_left_1", "bottom_left_2", "bottom_right_1", "bottom_right_2"].forEach(function (id) { el(id).addEventListener("input", renderPreview); });
-  PARAMETER_IDS.forEach(function (id) { el("icon_" + id).addEventListener("change", renderPreview); });
-  PARAMETER_IDS.forEach(function (id) { el("label_" + id).addEventListener("input", renderPreview); });
+  ["context_warn", "context_alert", "context_danger", "show_icons", "show_labels", "top_left_1", "top_left_2", "top_right_1", "top_right_2", "bottom_left_1", "bottom_left_2", "bottom_right_1", "bottom_right_2"].forEach(function (id) { el(id).addEventListener("input", renderPreview); });
   el("addRow").addEventListener("click", function () { layoutRows.push({ separator: "slash", items: ["git_branch"] }); renderRows(); renderPreview(); });
+  el("addNativeRow").addEventListener("click", function () { nativeLayoutRows.push({ separator: "slash", items: ["native_footer"] }); renderRows(); renderPreview(); });
   el("yaml_source").addEventListener("input", renderSourcePreview);
   el("insertTemplate").addEventListener("click", function () { el("yaml_source").value = TEMPLATE; renderSourcePreview(); el("yaml_source").focus(); });
   function closePanel() {
@@ -913,12 +942,10 @@ export function buildPanelHtml(
       lang: val('lang'), style: val('style'), density: val('density'), editor_padding: val('editor_padding'),
       cwd_path_mode: val('cwd_path_mode'), git_branch_mode: val('git_branch_mode'),
       show_icons: checked('show_icons'), show_labels: checked('show_labels'),
-      native_footer: checked('native_footer'),
-      icons: Object.fromEntries(PARAMETER_IDS.map(function (id) { return [id, val('icon_' + id)]; }).filter(function (entry) { return entry[1] !== ''; })),
-      labels: Object.fromEntries(PARAMETER_IDS.map(function (id) { return [id, val('label_' + id)]; }).filter(function (entry) { return entry[1] !== ''; })),
       thresholds: { context_warn: num('context_warn'), context_alert: num('context_alert'), context_danger: num('context_danger') },
       border_slots: slotValues(),
       footer_layout: readLayout(),
+      native_footer_layout: readLayout(nativeLayoutRows),
     };
   }
   el("cancel").addEventListener("click", closePanel);

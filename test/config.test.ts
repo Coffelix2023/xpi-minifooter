@@ -93,24 +93,10 @@ describe("config schema (task 1.2)", () => {
     ).toBeNull();
   });
 
-  test("fills icon and label defaults and accepts custom parameter text", () => {
-    expect(DEFAULT_CONFIG.icons).toEqual({});
-    expect(DEFAULT_CONFIG.labels).toEqual({});
-    expect(
-      parseConfig("icons: { git_branch: '' }\nlabels: { git_branch: Branch }"),
-    ).toMatchObject({
-      icons: {
-        git_branch: "",
-      },
-      labels: {
-        git_branch: "Branch",
-      },
-    });
-  });
-
-  test("rejects unknown or oversized icon and label values", () => {
-    expect(parseConfig("icons: { unknown: icon }")).toBeNull();
-    expect(parseConfig(`labels: { git_branch: "${"x".repeat(65)}" }`)).toBeNull();
+  test("rejects removed icon, label, and native footer fields", () => {
+    expect(parseConfig("icons: { git_branch: '' }")).toBeNull();
+    expect(parseConfig("labels: { git_branch: Branch }")).toBeNull();
+    expect(parseConfig("native_footer: true")).toBeNull();
   });
 
   test("invalid yaml returns null", () => {

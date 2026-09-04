@@ -264,6 +264,7 @@ export function renderSegment(
   inputs: SegmentInputs,
   width: number,
   runPorcelain: () => string | null,
+  showIcon?: boolean,
 ): FooterSegment | null {
   const ctx: SegmentContext = {
     cwd: inputs.cwd,
@@ -329,10 +330,8 @@ export function renderSegment(
       return null;
   }
   const decorated = decorateSegment(id, text, {
-    icons: config.icons,
-    labels: config.labels,
     lang: config.lang,
-    show_icons: config.show_icons,
+    show_icons: showIcon ?? config.show_icons,
     show_labels: config.show_labels,
   });
   if (decorated === null) return null;
@@ -367,18 +366,35 @@ export function buildFooterRows(
       .flat()
       .filter((id) => id !== "none"),
   );
-  return config.footer_layout.map((row) => {
-    const segments: FooterSegment[] = [];
-    for (const id of row.items) {
-      if (id === "native_footer" || activeBorderIds.has(id)) continue;
-      const seg = renderSegment(id, config, inputs, width, runPorcelain);
-      if (seg !== null) segments.push(seg);
-    }
-    return {
-      segments,
-      separator: row.separator,
-    };
-  });
+  const renderRows = (
+    layout: MinifooterConfig["footer_layout"],
+    excludeNative: boolean,
+  ): FooterRowData[] =>
+    layout.map((row) => {
+      const segments: FooterSegment[] = [];
+      for (const item of row.items) {
+        const id = typeof item === "string" ? item : item.id;
+        if ((excludeNative && id === "native_footer") || activeBorderIds.has(id))
+          continue;
+        const seg = renderSegment(
+          id,
+          config,
+          inputs,
+          width,
+          runPorcelain,
+          typeof item === "string" ? undefined : item.showIcon,
+        );
+        if (seg !== null) segments.push(seg);
+      }
+      return {
+        segments,
+        separator: row.separator,
+      };
+    });
+  return [
+    ...renderRows(config.footer_layout, true),
+    ...renderRows(config.native_footer_layout, false),
+  ];
 }
 
 /** border_slots → 四角段(none → null) */
@@ -467,22 +483,6 @@ class MiniFooter implements Component {
     const rows = buildFooterRows(this.env.runtime.config, inputs, width, () =>
       fetchPorcelain(this.env.pi, this.env.runtime, this.env.ctx.cwd),
     );
-    const nativeFooter = this.env.runtime.config.native_footer
-      ? renderSegment(
-          "native_footer",
-          this.env.runtime.config,
-          inputs,
-          width,
-          () => null,
-        )
-      : null;
-    if (nativeFooter !== null)
-      rows.push({
-        separator: "space",
-        segments: [
-          nativeFooter,
-        ],
-      });
     return renderFooter(rows, this.env.runtime.config.density, width, this.theme);
   }
 }

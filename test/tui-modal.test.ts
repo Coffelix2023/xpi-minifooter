@@ -83,7 +83,7 @@ describe("buildModalLines (TUI fallback)", () => {
     ).join("\n");
     expect(text).toContain("左上 git_branch, model_name");
     expect(text).toContain("native footer: ● plugin:on");
-    expect(text).toContain("context tokens: 12.0k/1.0M");
+    expect(text).toContain("context tokens: 12k/1M");
   });
 });
 

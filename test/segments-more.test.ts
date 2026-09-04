@@ -155,7 +155,7 @@ describe("2.6 context bar", () => {
     expect(resolveContextBar(noopCtx, 80, THRESHOLDS, false)).toBe("████████░░ 80%");
     expect(resolveContextBar(noopCtx, 100, THRESHOLDS, false)).toBe("██████████ 100%");
     expect(resolveContextBar(noopCtx, 50, THRESHOLDS, false, 12_000, 1_000_000)).toBe(
-      "█████░░░░░ 50% 12.0k/1.0M",
+      "█████░░░░░ 50% 12k/1M",
     );
     expect(resolveContextBar(noopCtx, 50, THRESHOLDS, true)).toBe("#####----- 50%");
   });
@@ -174,16 +174,16 @@ describe("2.6 context bar", () => {
 // ─── 2.7 tokens / cost / session_time ───────────────────────────────────────
 
 describe("2.7 usage segments", () => {
-  test("tokens formats in/out with k/M", () => {
+  test("tokens format compact counts as integers", () => {
     expect(
       resolveTokens(
         noopCtx,
         usage({
-          inputTokens: 500,
-          outputTokens: 20_000,
+          inputTokens: 12_345,
+          outputTokens: 257_890,
         }),
       ),
-    ).toBe("↑500 ↓20.0k");
+    ).toBe("↑12k ↓257k");
     expect(
       resolveTokens(
         noopCtx,
@@ -192,7 +192,7 @@ describe("2.7 usage segments", () => {
           outputTokens: 1,
         }),
       ),
-    ).toBe("↑1.2M ↓1");
+    ).toBe("↑1M ↓1");
   });
 
   test("tokens omitted before first turn", () => {
