@@ -848,6 +848,7 @@ export function buildPanelHtml(
     lines.push("");
     lines.push(bottomLeft + new Array(24).join(" ") + bottomRight);
     return lines.join("\\n");
+  }
   function slotValues() { return {
     top_left: [val("top_left_1"), val("top_left_2")].filter(Boolean),
     top_right: [val("top_right_1"), val("top_right_2")].filter(Boolean),

@@ -1,3 +1,4 @@
+import { Script } from "node:vm";
 import { describe, expect, test } from "vitest";
 import { DEFAULT_CONFIG, type MinifooterConfig } from "../src/config.js";
 import { applyPanelConfig, runMinifooterCommand } from "../src/index.js";
@@ -13,6 +14,12 @@ import {
 } from "../src/panel.js";
 import { SessionRuntime } from "../src/session.js";
 
+const PANEL_SCRIPT_PATTERN = /<script>\n([\s\S]*?)\n<\/script>/;
+function assertPanelScriptIsValid(html: string): void {
+  const script = html.match(PANEL_SCRIPT_PATTERN)?.[1];
+  expect(script).toBeDefined();
+  expect(() => new Script(script ?? "")).not.toThrow();
+}
 function enConfig(): MinifooterConfig {
   return {
     ...structuredClone(DEFAULT_CONFIG),
@@ -21,6 +28,14 @@ function enConfig(): MinifooterConfig {
 }
 
 describe("buildPanelHtml", () => {
+  test("generates executable panel event-handler script", () => {
+    assertPanelScriptIsValid(
+      buildPanelHtml(enConfig(), {
+        liveApply: true,
+      }),
+    );
+  });
+
   test("renders every field from DEFAULT_CONFIG", () => {
     const html = buildPanelHtml(DEFAULT_CONFIG);
     expect(html).toContain('id="lang"');
