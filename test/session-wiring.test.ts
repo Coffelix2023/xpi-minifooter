@@ -668,13 +668,13 @@ describe("SegmentInputs consumers", () => {
       fakeConfig({
         footer_layout: [
           {
+            separator: "space",
             items: [
               {
                 id: "git_branch",
                 showIcon: false,
               },
             ],
-            separator: "space",
           },
         ],
       }),
@@ -712,16 +712,16 @@ describe("SegmentInputs consumers", () => {
         footer_layout: [],
         native_footer_layout: [
           {
+            separator: "space",
             items: [
               "native_footer",
             ],
-            separator: "space",
           },
           {
+            separator: "dot",
             items: [
               "native_footer",
             ],
-            separator: "dot",
           },
         ],
       }),

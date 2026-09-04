@@ -93,7 +93,9 @@ export async function runMinifooterCommand(
     save?: PanelSaveDeps;
   } = {},
 ) {
-  const notifyError = (message: string) => ctx.ui.notify(message, "error");
+  const notifyError = (message: string) => {
+    process.stderr.write(`${message}\n`);
+  };
   const apply = (
     result: Exclude<
       PanelResult,

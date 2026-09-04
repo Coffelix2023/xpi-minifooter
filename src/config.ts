@@ -316,12 +316,13 @@ export function parseConfigWithError(raw: string): ConfigParseResult {
       ...partial.thresholds,
     },
   };
-  const borderIds = Object.values(merged.border_slots)
-    .flat()
-    .filter((id) => id !== "none");
+  const duplicateInSlot = Object.values(merged.border_slots).some((slot) => {
+    const ids = slot.filter((id) => id !== "none");
+    return new Set(ids).size !== ids.length;
+  });
   if (
     Object.values(merged.border_slots).some((slot) => slot.length > 2) ||
-    new Set(borderIds).size !== borderIds.length
+    duplicateInSlot
   )
     return {
       config: null,

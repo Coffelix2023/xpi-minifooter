@@ -61,9 +61,20 @@ describe("config schema (task 1.2)", () => {
     expect(parseConfig("editor_padding: compact")).toBeNull();
   });
 
-  test("duplicate border slots return null", () => {
+  test("allows duplicates across border slots", () => {
+    const config = parseConfig(
+      "border_slots: { top_left: git_branch, top_right: git_branch }",
+    );
+    expect(config?.border_slots.top_left).toEqual([
+      "git_branch",
+    ]);
+    expect(config?.border_slots.top_right).toEqual([
+      "git_branch",
+    ]);
+  });
+  test("rejects duplicates within one border slot", () => {
     expect(
-      parseConfig("border_slots: { top_left: git_branch, top_right: git_branch }"),
+      parseConfig("border_slots:\n  top_left: [git_branch, git_branch]"),
     ).toBeNull();
   });
   test("border and footer duplicates remain valid", () => {

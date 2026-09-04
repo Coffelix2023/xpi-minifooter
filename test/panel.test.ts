@@ -1,5 +1,5 @@
 import { Script } from "node:vm";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { DEFAULT_CONFIG, type MinifooterConfig } from "../src/config.js";
 import { applyPanelConfig, runMinifooterCommand } from "../src/index.js";
 import {
@@ -20,6 +20,8 @@ function assertPanelScriptIsValid(html: string): void {
   expect(script).toBeDefined();
   expect(() => new Script(script ?? "")).not.toThrow();
 }
+
+const INVALID_YAML_LINE_PATTERN = /xpi-minifooter: invalid YAML at line 1\n/;
 function enConfig(): MinifooterConfig {
   return {
     ...structuredClone(DEFAULT_CONFIG),
@@ -244,11 +246,15 @@ describe("panel command config refresh", () => {
     expect(runtime.config.density).toBe("spacious");
   });
 
-  test("Apply uses the save boundary without ending the command", async () => {
+  test("Apply reports validation failures to stderr without stale UI access", async () => {
     const applied: unknown[] = [];
     const saved: unknown[] = [];
     const notifications: string[] = [];
-    const runtime = new SessionRuntime();
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const runtime = new SessionRuntime({
+      configPath: () => "/nonexistent/minifooter.yml",
+      statMtime: () => null,
+    });
     runtime.applyConfig = (config) => {
       applied.push(config);
     };
@@ -279,11 +285,16 @@ describe("panel command config refresh", () => {
         },
       },
     );
+    const stderrCalls = stderrWrite.mock.calls.map(([message]) => message);
+    stderrWrite.mockRestore();
     expect(saved).toHaveLength(1);
     expect(applied[0]).toMatchObject({
       density: "compact",
     });
-    expect(notifications[0]).toContain("invalid configuration values");
+    expect(notifications).toEqual([]);
+    expect(stderrCalls).toContainEqual(
+      expect.stringMatching(INVALID_YAML_LINE_PATTERN),
+    );
   });
 
   test("Save still applies once after the panel closes", async () => {
