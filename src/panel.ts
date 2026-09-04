@@ -32,13 +32,28 @@ export type PanelResult =
 /** glimpseui loader(可注入 mock); 返回 null = 不可用 */
 export type GlimpseLoader = () => Promise<GlimpseModule | null>;
 
+export type SavedPanelResult = Extract<
+  PanelResult,
+  {
+    outcome: "saved";
+  }
+>;
+
+export interface GlimpseWindow {
+  close(): void;
+  on(event: string, listener: (...args: unknown[]) => void): this;
+  once(event: string, listener: (...args: unknown[]) => void): this;
+}
+
 export interface GlimpseModule {
+  open?(html: string, options?: Record<string, unknown>): GlimpseWindow;
   prompt(html: string, options?: Record<string, unknown>): Promise<unknown>;
 }
 
 async function tryImport(spec: string): Promise<GlimpseModule | null> {
   try {
     const mod = (await import(spec)) as {
+      open?: unknown;
       prompt?: unknown;
     };
     if (typeof mod.prompt === "function") return mod as GlimpseModule;
@@ -165,7 +180,13 @@ function parameterDescription(id: (typeof PARAMETER_IDS)[number]): string {
 }
 
 /** 面板 HTML; 所有插值经 escapeHtml 或来自受限枚举 */
-export function buildPanelHtml(config: MinifooterConfig): string {
+export function buildPanelHtml(
+  config: MinifooterConfig,
+  options: {
+    liveApply?: boolean;
+  } = {},
+) {
+  const liveApply = options.liveApply === true;
   const e = escapeHtml;
   const slotOptions = [
     "none",
@@ -204,7 +225,7 @@ export function buildPanelHtml(config: MinifooterConfig): string {
   body {
     margin: 0; background: var(--canvas); color: var(--ink);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 12px; line-height: 1.4; padding: 16px 20px;
+    font-size: 12px; line-height: 1.4; padding: 16px 20px 64px;
   }
   h1 { font-size: 14px; font-weight: 700; margin: 0 0 12px; }
   h1 .hint { color: var(--muted); font-weight: 400; font-size: 12px; }
@@ -239,7 +260,7 @@ export function buildPanelHtml(config: MinifooterConfig): string {
   .ref-row { display: grid; grid-template-columns: 18ch 1fr; gap: 8px; padding: 2px 0; }
   .ref-row code { color: var(--accent); }
   .legal { color: var(--muted); margin-top: 6px; white-space: normal; }
-  .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+  .actions { display: flex; gap: 8px; justify-content: flex-end; position: fixed; bottom: 0; left: 0; right: 0; padding: 10px 20px; background: var(--canvas); border-top: 1px solid var(--rule); }
   button {
     padding: 8px 18px; font: inherit; cursor: pointer;
     border: 1px solid var(--rule); background: var(--canvas); color: var(--ink);
@@ -339,6 +360,7 @@ export function buildPanelHtml(config: MinifooterConfig): string {
 </div>
 <div class="actions">
   <button id="cancel" type="button">Cancel</button>
+  ${liveApply ? '<button id="apply" type="button">Apply</button>' : ""}
   <button id="save" type="button" class="primary">Save</button>
 </div>
 <script>
@@ -494,11 +516,14 @@ export function buildPanelHtml(config: MinifooterConfig): string {
   function closePanel() {
     if (window.glimpse && typeof window.glimpse.close === "function") window.glimpse.close();
   }
-  el("save").addEventListener("click", function () {
+  function sendAction(action) {
     if (!window.glimpse || typeof window.glimpse.send !== "function") return;
-    if (activeTab === "sourceTab") window.glimpse.send({ action: "save", rawYaml: val("yaml_source") });
-    else window.glimpse.send({ action: "save", config: collect() });
-  });
+    if (activeTab === "sourceTab") window.glimpse.send({ action: action, rawYaml: val("yaml_source") });
+    else window.glimpse.send({ action: action, config: collect() });
+  }
+  el("save").addEventListener("click", function () { sendAction("save"); });
+  var apply = el("apply");
+  if (apply) apply.addEventListener("click", function () { sendAction("apply"); });
   function collect() {
     var layout = parseLayout(val("footer_layout"));
     return {
@@ -522,6 +547,109 @@ export function buildPanelHtml(config: MinifooterConfig): string {
 
 export interface PanelDeps {
   load?: GlimpseLoader;
+  onApply?: (result: SavedPanelResult) => void;
+}
+
+const PANEL_WINDOW = {
+  height: 720,
+  title: "xpi-minifooter",
+  width: 640,
+} as const;
+
+function asPanelPayload(answer: unknown): {
+  action: "apply" | "save";
+  saved: SavedPanelResult;
+} | null {
+  if (answer === null || typeof answer !== "object") return null;
+  const payload = answer as {
+    action?: string;
+    config?: unknown;
+    rawYaml?: unknown;
+  };
+  if (payload.action !== "save" && payload.action !== "apply") return null;
+  if (typeof payload.rawYaml === "string") {
+    return {
+      action: payload.action,
+      saved: {
+        outcome: "saved",
+        rawYaml: payload.rawYaml,
+      },
+    };
+  }
+  if (typeof payload.config === "object" && payload.config !== null) {
+    return {
+      action: payload.action,
+      saved: {
+        config: payload.config as MinifooterConfig,
+        outcome: "saved",
+      },
+    };
+  }
+  return null;
+}
+
+function openLivePanel(
+  glimpse: GlimpseModule,
+  config: MinifooterConfig,
+  onApply: PanelDeps["onApply"],
+): Promise<PanelResult> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const win = glimpse.open?.(
+      buildPanelHtml(config, {
+        liveApply: true,
+      }),
+      PANEL_WINDOW,
+    );
+    if (win === undefined) {
+      resolve({
+        outcome: "cancelled",
+      });
+      return;
+    }
+    const finish = (result: PanelResult) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+    win.on("message", (...args: unknown[]) => {
+      const parsed = asPanelPayload(args[0]);
+      if (parsed === null) return;
+      if (parsed.action === "apply") {
+        onApply?.(parsed.saved);
+        return;
+      }
+      finish(parsed.saved);
+      win.close();
+    });
+    win.once("closed", () => {
+      finish({
+        outcome: "cancelled",
+      });
+    });
+    win.once("error", (...args: unknown[]) => {
+      if (settled) return;
+      settled = true;
+      reject(args[0] instanceof Error ? args[0] : new Error(String(args[0])));
+    });
+  });
+}
+
+async function openPromptPanel(
+  glimpse: GlimpseModule,
+  config: MinifooterConfig,
+): Promise<PanelResult> {
+  const answer = (await glimpse.prompt(
+    buildPanelHtml(config),
+    PANEL_WINDOW,
+  )) as unknown;
+  const parsed = asPanelPayload(answer);
+  if (parsed === null || parsed.action !== "save") {
+    return {
+      outcome: "cancelled",
+    };
+  }
+  return parsed.saved;
 }
 
 /**
@@ -529,6 +657,7 @@ export interface PanelDeps {
  * - saved: 用户确认, config 已收
  * - cancelled: 窗口关闭 / Esc / Cancel
  * - unavailable: glimpseui 动态导入失败(fail-closed, 调用方走 TUI fallback)
+ * 有 open() 时 Apply 经 onApply 热应用且不关窗; 无 open 时退回 prompt()。
  */
 export async function openGlimpsePanel(
   config: MinifooterConfig,
@@ -547,34 +676,8 @@ export async function openGlimpsePanel(
     return {
       outcome: "unavailable",
     };
-  const answer = (await glimpse.prompt(buildPanelHtml(config), {
-    height: 720,
-    title: "xpi-minifooter",
-    width: 640,
-  })) as {
-    action?: string;
-    config?: unknown;
-    rawYaml?: unknown;
-  } | null;
-  if (
-    answer === null ||
-    answer === undefined ||
-    answer.action !== "save" ||
-    (typeof answer.config !== "object" && typeof answer.rawYaml !== "string") ||
-    (answer.config === null && typeof answer.rawYaml !== "string")
-  ) {
-    return {
-      outcome: "cancelled",
-    };
+  if (typeof glimpse.open === "function") {
+    return await openLivePanel(glimpse, config, deps.onApply);
   }
-  if (typeof answer.rawYaml === "string") {
-    return {
-      outcome: "saved",
-      rawYaml: answer.rawYaml,
-    };
-  }
-  return {
-    config: answer.config as MinifooterConfig,
-    outcome: "saved",
-  };
+  return await openPromptPanel(glimpse, config);
 }

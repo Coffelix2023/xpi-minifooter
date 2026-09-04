@@ -5,7 +5,7 @@ import {
   parseConfigWithError,
   saveConfig,
 } from "./config.js";
-import { openGlimpsePanel, type PanelResult } from "./panel.js";
+import { openGlimpsePanel, type PanelDeps, type PanelResult } from "./panel.js";
 import { SessionRuntime, wireSession } from "./session.js";
 import { openTuiModal } from "./tui-modal.js";
 
@@ -20,7 +20,7 @@ interface PanelRuntime {
   applyConfig(config: MinifooterConfig): void;
 }
 
-interface PanelSaveDeps {
+export interface PanelSaveDeps {
   path: string;
   save: typeof saveConfig;
 }
@@ -53,6 +53,59 @@ export function applyPanelConfig(
   return true;
 }
 
+export async function runMinifooterCommand(
+  runtime: SessionRuntime,
+  ctx: {
+    ui: {
+      notify(message: string, kind?: string): void;
+    };
+  },
+  deps: {
+    openPanel?: typeof openGlimpsePanel;
+    openFallback?: (
+      ctx: {
+        ui: {
+          notify(message: string, kind?: string): void;
+        };
+      },
+      config: MinifooterConfig,
+    ) => Promise<boolean>;
+    save?: PanelSaveDeps;
+  } = {},
+) {
+  const notifyError = (message: string) => ctx.ui.notify(message, "error");
+  const apply = (
+    result: Exclude<
+      PanelResult,
+      | {
+          outcome: "cancelled";
+        }
+      | {
+          outcome: "unavailable";
+        }
+    >,
+  ) =>
+    deps.save === undefined
+      ? applyPanelConfig(runtime, result, notifyError)
+      : applyPanelConfig(runtime, result, notifyError, deps.save);
+  refreshConfigBeforePanel(runtime, (message) => ctx.ui.notify(message, "warning"));
+  const result = await (deps.openPanel ?? openGlimpsePanel)(runtime.config, {
+    onApply: apply,
+  } satisfies PanelDeps);
+  if (result.outcome === "saved") {
+    apply(result);
+    return;
+  }
+  if (result.outcome !== "unavailable") return;
+  const shown = await (deps.openFallback ?? openTuiModal)(ctx as never, runtime.config);
+  if (!shown) {
+    ctx.ui.notify(
+      "xpi-minifooter: no UI backend available; edit ~/.pi/agent/minifooter.yml directly",
+      "warning",
+    );
+  }
+}
+
 export default function xpiMinifooter(pi: ExtensionAPI): void {
   const runtime = new SessionRuntime();
   wireSession(pi, runtime);
@@ -60,21 +113,7 @@ export default function xpiMinifooter(pi: ExtensionAPI): void {
   pi.registerCommand("xpi-minifooter", {
     description: "Open the xpi-minifooter config panel",
     handler: async (_args, ctx) => {
-      refreshConfigBeforePanel(runtime, (message) => ctx.ui.notify(message, "warning"));
-      const result = await openGlimpsePanel(runtime.config);
-      if (result.outcome === "saved") {
-        applyPanelConfig(runtime, result, (message) => ctx.ui.notify(message, "error"));
-        return;
-      }
-      if (result.outcome === "unavailable") {
-        const shown = await openTuiModal(ctx, runtime.config);
-        if (!shown) {
-          ctx.ui.notify(
-            "xpi-minifooter: no UI backend available; edit ~/.pi/agent/minifooter.yml directly",
-            "warning",
-          );
-        }
-      }
+      await runMinifooterCommand(runtime, ctx);
     },
   });
 }

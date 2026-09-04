@@ -1,14 +1,17 @@
 import { describe, expect, test } from "vitest";
 import { DEFAULT_CONFIG } from "../src/config.js";
-import { applyPanelConfig } from "../src/index.js";
+import { applyPanelConfig, runMinifooterCommand } from "../src/index.js";
 import {
   buildPanelHtml,
   escapeHtml,
   footerLayoutToText,
   type GlimpseModule,
+  type GlimpseWindow,
   openGlimpsePanel,
   parseFooterLayoutText,
+  type SavedPanelResult,
 } from "../src/panel.js";
+import { SessionRuntime } from "../src/session.js";
 
 describe("buildPanelHtml", () => {
   test("renders every field from DEFAULT_CONFIG", () => {
@@ -34,6 +37,26 @@ describe("buildPanelHtml", () => {
     expect(html).toContain('id="preview"');
   });
 
+  test("docks the action bar to the window bottom", () => {
+    const html = buildPanelHtml(DEFAULT_CONFIG);
+    expect(html).toContain(
+      ".actions { display: flex; gap: 8px; justify-content: flex-end; position: fixed; bottom: 0; left: 0; right: 0;",
+    );
+    expect(html).toContain("padding: 16px 20px 64px");
+    expect(html).toContain('<button id="cancel" type="button">Cancel</button>');
+    expect(html).toContain(
+      '<button id="save" type="button" class="primary">Save</button>',
+    );
+  });
+
+  test("shows Apply only when liveApply is enabled", () => {
+    expect(buildPanelHtml(DEFAULT_CONFIG)).not.toContain('<button id="apply"');
+    expect(
+      buildPanelHtml(DEFAULT_CONFIG, {
+        liveApply: true,
+      }),
+    ).toContain('<button id="apply" type="button">Apply</button>');
+  });
   test("escapes interpolated config values", () => {
     const html = buildPanelHtml(DEFAULT_CONFIG);
     // footer_layout 内容经 escapeHtml(默认值无特殊字符, 但断言无原始 <script> 注入面)
@@ -108,8 +131,75 @@ describe("panel command config refresh", () => {
     refreshConfigBeforePanel(runtime, () => {});
     expect(runtime.config.density).toBe("spacious");
   });
-});
 
+  test("Apply uses the save boundary without ending the command", async () => {
+    const applied: unknown[] = [];
+    const saved: unknown[] = [];
+    const notifications: string[] = [];
+    const runtime = new SessionRuntime();
+    runtime.applyConfig = (config) => {
+      applied.push(config);
+    };
+    await runMinifooterCommand(
+      runtime,
+      {
+        ui: {
+          notify: (message) => notifications.push(message),
+        },
+      },
+      {
+        openPanel: async (_config, deps) => {
+          deps?.onApply?.({
+            outcome: "saved",
+            rawYaml: "density: compact",
+          });
+          deps?.onApply?.({
+            outcome: "saved",
+            rawYaml: "density: [",
+          });
+          return {
+            outcome: "cancelled",
+          };
+        },
+        save: {
+          path: "/tmp/minifooter.yml",
+          save: (_path, value) => saved.push(value),
+        },
+      },
+    );
+    expect(saved).toHaveLength(1);
+    expect(applied[0]).toMatchObject({
+      density: "compact",
+    });
+    expect(notifications[0]).toContain("line 1");
+  });
+
+  test("Save still applies once after the panel closes", async () => {
+    const saved: unknown[] = [];
+    const runtime = new SessionRuntime();
+    await runMinifooterCommand(
+      runtime,
+      {
+        ui: {
+          notify: () => {},
+        },
+      },
+      {
+        openPanel: async () =>
+          ({
+            outcome: "saved",
+            rawYaml: "density: compact",
+          }) satisfies SavedPanelResult,
+        save: {
+          path: "/tmp/minifooter.yml",
+          save: (_path, value) => saved.push(value),
+        },
+      },
+    );
+    expect(saved).toHaveLength(1);
+    expect(runtime.config.density).toBe("compact");
+  });
+});
 describe("panel save boundary", () => {
   test("applies valid form config through one boundary", () => {
     const applied: unknown[] = [];
@@ -381,8 +471,9 @@ describe("openGlimpsePanel", () => {
     }
     expect(html).toContain("editor_padding: default | compact | relaxed");
     expect(html).toContain(
-      'window.glimpse.send({ action: "save", rawYaml: val("yaml_source") })',
+      'window.glimpse.send({ action: action, rawYaml: val("yaml_source") })',
     );
+    expect(html).not.toContain('<button id="apply"');
     // bug02 回归: Cancel/Esc 走正式关闭协议, 不再发送非法 null 消息
     expect(html).not.toContain("send(null)");
     expect(html.match(/window\.glimpse\.close\(\)/g)).toHaveLength(1);
@@ -404,5 +495,132 @@ describe("openGlimpsePanel", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]?.html).toContain('id="save"');
     expect(calls[0]?.html).toContain('id="footer_layout"');
+    expect(calls[0]?.html).not.toContain('<button id="apply"');
+  });
+
+  function fakeOpenGlimpse(
+    emit: (win: {
+      close: () => void;
+      emit: (event: string, data?: unknown) => void;
+    }) => void,
+    calls: {
+      html?: string;
+    }[] = [],
+  ): GlimpseModule {
+    return {
+      open(html: string) {
+        calls.push({
+          html,
+        });
+        const listeners = new Map<string, ((...args: unknown[]) => void)[]>();
+        const win: GlimpseWindow & {
+          emit: (event: string, data?: unknown) => void;
+        } = {
+          close() {
+            win.emit("closed");
+          },
+          emit(event, data) {
+            for (const listener of listeners.get(event) ?? []) listener(data);
+          },
+          on(event, listener) {
+            const current = listeners.get(event) ?? [];
+            current.push(listener);
+            listeners.set(event, current);
+            return win;
+          },
+          once(event, listener) {
+            const wrap = (...args: unknown[]) => {
+              const current = listeners.get(event) ?? [];
+              listeners.set(
+                event,
+                current.filter((item) => item !== wrap),
+              );
+              listener(...args);
+            };
+            return win.on(event, wrap);
+          },
+        };
+        queueMicrotask(() => emit(win));
+        return win;
+      },
+      prompt: async () => {
+        throw new Error("prompt fallback should not run when open exists");
+      },
+    };
+  }
+
+  test("open() Apply keeps the window open and Save closes it", async () => {
+    const cfg = structuredClone(DEFAULT_CONFIG);
+    cfg.density = "compact";
+    const applied: unknown[] = [];
+    const calls: {
+      html?: string;
+    }[] = [];
+    let closed = 0;
+    const result = await openGlimpsePanel(DEFAULT_CONFIG, {
+      load: async () =>
+        fakeOpenGlimpse((win) => {
+          const originalClose = win.close.bind(win);
+          win.close = () => {
+            closed += 1;
+            originalClose();
+          };
+          win.emit("message", {
+            action: "other",
+            config: cfg,
+          });
+          win.emit("message", {
+            action: "apply",
+          });
+          win.emit("message", {
+            action: "apply",
+            config: cfg,
+          });
+          win.emit("message", {
+            action: "apply",
+            rawYaml: "density: compact",
+          });
+          win.emit("message", {
+            action: "save",
+            config: cfg,
+          });
+        }, calls),
+      onApply: (payload) => applied.push(payload),
+    });
+    expect(calls[0]?.html).toContain('<button id="apply" type="button">Apply</button>');
+    expect(applied).toEqual([
+      {
+        config: cfg,
+        outcome: "saved",
+      },
+      {
+        outcome: "saved",
+        rawYaml: "density: compact",
+      },
+    ]);
+    expect(closed).toBe(1);
+    expect(result).toEqual({
+      config: cfg,
+      outcome: "saved",
+    });
+  });
+
+  test("open() close without save is cancelled", async () => {
+    const applied: unknown[] = [];
+    const result = await openGlimpsePanel(DEFAULT_CONFIG, {
+      load: async () =>
+        fakeOpenGlimpse((win) => {
+          win.emit("message", {
+            action: "apply",
+            config: structuredClone(DEFAULT_CONFIG),
+          });
+          win.close();
+        }),
+      onApply: (payload) => applied.push(payload),
+    });
+    expect(applied).toHaveLength(1);
+    expect(result).toEqual({
+      outcome: "cancelled",
+    });
   });
 });
