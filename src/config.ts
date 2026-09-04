@@ -62,7 +62,6 @@ export const configSchema = Type.Object({
   editor_padding: Type.Optional(
     Type.Union([
       Type.Literal("default"),
-      Type.Literal("compact"),
       Type.Literal("relaxed"),
     ]),
   ),
@@ -130,7 +129,7 @@ export interface MinifooterConfig {
   >;
   cwd_path_mode: "basename" | "relative" | "full";
   density: "compact" | "comfortable" | "spacious";
-  editor_padding: "default" | "compact" | "relaxed";
+  editor_padding: "default" | "relaxed";
   footer_layout: {
     items: ParameterId[];
     separator: "slash" | "dot" | "pipe" | "space";

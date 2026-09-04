@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { DEFAULT_CONFIG } from "../src/config.js";
+import { DEFAULT_CONFIG, type MinifooterConfig } from "../src/config.js";
 import { applyPanelConfig, runMinifooterCommand } from "../src/index.js";
 import {
   buildPanelHtml,
@@ -12,6 +12,13 @@ import {
   type SavedPanelResult,
 } from "../src/panel.js";
 import { SessionRuntime } from "../src/session.js";
+
+function enConfig(): MinifooterConfig {
+  return {
+    ...structuredClone(DEFAULT_CONFIG),
+    lang: "en",
+  };
+}
 
 describe("buildPanelHtml", () => {
   test("renders every field from DEFAULT_CONFIG", () => {
@@ -33,12 +40,13 @@ describe("buildPanelHtml", () => {
     ]) {
       expect(html).toContain(`id="${slot}"`);
     }
-    expect(html).toContain('id="footer_layout"');
+    expect(html).toContain('id="layoutRows"');
+    expect(html).toContain('id="addRow"');
     expect(html).toContain('id="preview"');
   });
 
   test("docks the action bar to the window bottom", () => {
-    const html = buildPanelHtml(DEFAULT_CONFIG);
+    const html = buildPanelHtml(enConfig());
     expect(html).toContain(
       ".actions { display: flex; gap: 8px; justify-content: flex-end; position: fixed; bottom: 0; left: 0; right: 0;",
     );
@@ -50,9 +58,9 @@ describe("buildPanelHtml", () => {
   });
 
   test("shows Apply only when liveApply is enabled", () => {
-    expect(buildPanelHtml(DEFAULT_CONFIG)).not.toContain('<button id="apply"');
+    expect(buildPanelHtml(enConfig())).not.toContain('<button id="apply"');
     expect(
-      buildPanelHtml(DEFAULT_CONFIG, {
+      buildPanelHtml(enConfig(), {
         liveApply: true,
       }),
     ).toContain('<button id="apply" type="button">Apply</button>');
@@ -446,7 +454,7 @@ describe("openGlimpsePanel", () => {
     });
   });
   test("renders Form and YAML Source tabs with full source helpers", () => {
-    const html = buildPanelHtml(DEFAULT_CONFIG);
+    const html = buildPanelHtml(enConfig());
     expect(html).toContain('data-tab="formTab"');
     expect(html).toContain('data-tab="sourceTab"');
     expect(html).toContain('id="yaml_source"');
@@ -469,7 +477,7 @@ describe("openGlimpsePanel", () => {
     ]) {
       expect(html).toContain(`<code>${id}</code>`);
     }
-    expect(html).toContain("editor_padding: default | compact | relaxed");
+    expect(html).toContain("editor_padding: default | relaxed");
     expect(html).toContain(
       'window.glimpse.send({ action: action, rawYaml: val("yaml_source") })',
     );
@@ -494,7 +502,7 @@ describe("openGlimpsePanel", () => {
     });
     expect(calls).toHaveLength(1);
     expect(calls[0]?.html).toContain('id="save"');
-    expect(calls[0]?.html).toContain('id="footer_layout"');
+    expect(calls[0]?.html).toContain('id="layoutRows"');
     expect(calls[0]?.html).not.toContain('<button id="apply"');
   });
 
@@ -557,7 +565,7 @@ describe("openGlimpsePanel", () => {
       html?: string;
     }[] = [];
     let closed = 0;
-    const result = await openGlimpsePanel(DEFAULT_CONFIG, {
+    const result = await openGlimpsePanel(enConfig(), {
       load: async () =>
         fakeOpenGlimpse((win) => {
           const originalClose = win.close.bind(win);

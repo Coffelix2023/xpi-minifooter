@@ -19,6 +19,7 @@ const EDITOR_HANDLE_INPUT = /class BorderStatusEditor[\s\S]*handleInput\(/;
 
 function occupiedConfig() {
   const config = structuredClone(DEFAULT_CONFIG);
+  config.lang = "en";
   config.editor_padding = "relaxed";
   config.border_slots.top_left = "git_branch";
   config.border_slots.top_right = "model_name";
@@ -53,7 +54,7 @@ function inputs(): SegmentInputs {
 
 describe("5.7 Pi smoke checklist", () => {
   test("Form and YAML Source tabs exist", () => {
-    const html = buildPanelHtml(DEFAULT_CONFIG);
+    const html = buildPanelHtml(occupiedConfig());
     expect(html).toContain('data-tab="formTab"');
     expect(html).toContain('data-tab="sourceTab"');
     expect(html).toContain('id="yaml_source"');
@@ -158,7 +159,9 @@ describe("5.7 Pi smoke checklist", () => {
       },
     });
     expect(rendered).toContain("editor_padding: relaxed");
-    expect(rendered).toContain("Embedded in border: git_branch, model_name");
+    expect(rendered).toContain(
+      "Embedded in border: git_branch, model_name. Footer duplicates hidden.",
+    );
     expect(buildModalLines(occupiedConfig()).join("\n")).toContain(
       "[Esc/Enter/q] cancel",
     );

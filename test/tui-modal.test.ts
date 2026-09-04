@@ -20,21 +20,32 @@ describe("buildModalLines (TUI fallback)", () => {
   test("renders all config groups", () => {
     const lines = buildModalLines(DEFAULT_CONFIG);
     const text = lines.join("\n");
-    expect(text).toContain("lang: zh");
-    expect(text).toContain("density: comfortable");
-    expect(text).toContain("git: default");
-    expect(text).toContain("editor_padding: default");
-    expect(text).toContain("warn 50 / alert 75 / danger 80");
-    expect(text).toContain("tl none · tr none · bl none · br none");
-    expect(text).toContain("No parameters embedded in border.");
+    expect(text).toContain("语言: zh");
+    expect(text).toContain("密度: comfortable");
+    expect(text).toContain("分支: default");
+    expect(text).toContain("编辑器边距: default");
+    expect(text).toContain("警告 50 / 提醒 75 / 危险 80");
+    expect(text).toContain("左上 none · 右上 none · 左下 none · 右下 none");
+    expect(text).toContain("边框未嵌入参数。");
     expect(text).toContain("items: [git_branch, cwd_path, model_name, thinking_mode]");
     expect(text).toContain("items: [context_bar, tokens, cost, session_time]");
+  });
+
+  test("renders English labels for lang=en", () => {
+    const text = buildModalLines({
+      ...structuredClone(DEFAULT_CONFIG),
+      lang: "en",
+    }).join("\n");
+    expect(text).toContain("lang: en");
+    expect(text).toContain("editor_padding: default");
+    expect(text).toContain("warn 50 / alert 75 / danger 80");
+    expect(text).toContain("No parameters embedded in border.");
   });
 
   test("mentions the config file path for manual editing", () => {
     const text = buildModalLines(DEFAULT_CONFIG).join("\n");
     expect(text).toContain("minifooter.yml");
-    expect(text).toContain("[Esc/Enter/q] cancel");
+    expect(text).toContain("[Esc/Enter/q] 取消");
   });
 
   test("shows editor_padding and occupied border parameters", () => {
@@ -44,9 +55,9 @@ describe("buildModalLines (TUI fallback)", () => {
         top_left: "git_branch",
       }),
     ).join("\n");
-    expect(text).toContain("editor_padding: relaxed");
+    expect(text).toContain("编辑器边距: relaxed");
     expect(text).toContain(
-      "Embedded in border: git_branch, cwd_path. Footer duplicates hidden.",
+      "已嵌入边框: git_branch, cwd_path。footer 中的重复项将隐藏。",
     );
   });
 });
@@ -95,9 +106,7 @@ describe("openTuiModal fallback mock", () => {
         },
       },
     });
-    expect(rendered).toContain("editor_padding: relaxed");
-    expect(rendered).toContain(
-      "Embedded in border: model_name. Footer duplicates hidden.",
-    );
+    expect(rendered).toContain("编辑器边距: relaxed");
+    expect(rendered).toContain("已嵌入边框: model_name。footer 中的重复项将隐藏。");
   });
 });

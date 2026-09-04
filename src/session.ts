@@ -454,7 +454,7 @@ export function addEditorPadding(
   padding: MinifooterConfig["editor_padding"],
 ): string[] {
   if (lines.length < 3) return lines;
-  if (padding === "compact" || padding === "relaxed") {
+  if (padding === "relaxed") {
     return [
       lines[0] ?? "",
       "",

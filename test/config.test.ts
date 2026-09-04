@@ -56,7 +56,7 @@ describe("config schema (task 1.2)", () => {
     expect(parseConfig("editor_padding: relaxed")?.editor_padding).toBe("relaxed");
   });
   test("invalid editor padding returns null", () => {
-    expect(parseConfig("editor_padding: roomy")).toBeNull();
+    expect(parseConfig("editor_padding: compact")).toBeNull();
   });
 
   test("duplicate border slots return null", () => {

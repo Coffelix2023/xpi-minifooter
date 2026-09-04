@@ -159,25 +159,172 @@ function selectHtml(id: string, value: string, options: readonly string[]): stri
   return `<select id="${id}">${opts}</select>`;
 }
 
-const PARAMETER_DESCRIPTIONS: Record<(typeof PARAMETER_IDS)[number], string> = {
-  context_bar: "context usage bar and percent",
-  context_compact: "compact context percent",
-  cost: "session cost in USD",
-  cwd_path: "current working directory",
-  git_branch: "branch and worktree status",
-  mcp_skills: "MCP server and skill counts",
-  model_id: "active model raw id",
-  model_name: "active model friendly name or id",
-  native_footer: "native footer extension status indicators",
-  provider: "active model provider",
-  session_time: "elapsed session time",
-  thinking_mode: "current thinking level",
-  tokens: "input and output token counts",
-};
-
-function parameterDescription(id: (typeof PARAMETER_IDS)[number]): string {
-  return PARAMETER_DESCRIPTIONS[id];
+interface UiText {
+  addItem: string;
+  addRow: string;
+  apply: string;
+  cancel: string;
+  completeYml: string;
+  insertTemplate: string;
+  modalCancel: string;
+  modalEditHint: string;
+  modalLabels: {
+    on: string;
+    off: string;
+    lang: string;
+    density: string;
+    icons: string;
+    labels: string;
+    cwd: string;
+    git: string;
+    editor_padding: string;
+    thresholds: string;
+    warn: string;
+    alert: string;
+    danger: string;
+    slots: string;
+    tl: string;
+    tr: string;
+    bl: string;
+    br: string;
+    footer_layout: string;
+    separator: string;
+    items: string;
+  };
+  modalReloadHint: string;
+  occupancyEmpty: string;
+  occupancyUsed: string;
+  paramDescriptions: Record<(typeof PARAMETER_IDS)[number], string>;
+  parameterReference: (n: number) => string;
+  preview: string;
+  save: string;
+  sourcePreview: string;
+  sourcePreviewPartial: string;
+  tabForm: string;
+  tabSource: string;
 }
+
+export const UI_TEXT: Record<"zh" | "en", UiText> = {
+  en: {
+    addItem: "+ item",
+    addRow: "+ Add row",
+    apply: "Apply",
+    cancel: "Cancel",
+    completeYml: "complete minifooter.yml",
+    insertTemplate: "Insert template",
+    modalCancel: "[Esc/Enter/q] cancel",
+    modalEditHint: "Edit ~/.pi/agent/minifooter.yml to change values.",
+    modalReloadHint: "Changes hot-reload on next render.",
+    occupancyEmpty: "No parameters embedded in border.",
+    occupancyUsed: "Embedded in border: __USED__. Footer duplicates hidden.",
+    preview: "preview",
+    save: "Save",
+    sourcePreview: "source preview",
+    sourcePreviewPartial:
+      "Source preview is partial until valid footer_layout YAML is entered.",
+    tabForm: "Form",
+    tabSource: "YAML Source",
+    modalLabels: {
+      alert: "alert",
+      bl: "bl",
+      br: "br",
+      cwd: "cwd",
+      danger: "danger",
+      density: "density",
+      editor_padding: "editor_padding",
+      footer_layout: "footer_layout",
+      git: "git",
+      icons: "icons",
+      items: "items",
+      labels: "labels",
+      lang: "lang",
+      off: "off",
+      on: "on",
+      separator: "separator",
+      slots: "slots",
+      thresholds: "thresholds",
+      tl: "tl",
+      tr: "tr",
+      warn: "warn",
+    },
+    paramDescriptions: {
+      context_bar: "context usage bar and percent",
+      context_compact: "compact context percent",
+      cost: "session cost in USD",
+      cwd_path: "current working directory",
+      git_branch: "branch and worktree status",
+      mcp_skills: "MCP server and skill counts",
+      model_id: "active model raw id",
+      model_name: "active model friendly name or id",
+      native_footer: "native footer extension status indicators",
+      provider: "active model provider",
+      session_time: "elapsed session time",
+      thinking_mode: "current thinking level",
+      tokens: "input and output token counts",
+    },
+    parameterReference: (n) => `${n}-parameter reference`,
+  },
+  zh: {
+    addItem: "+ 添加参数",
+    addRow: "+ 添加行",
+    apply: "应用",
+    cancel: "取消",
+    completeYml: "完整 minifooter.yml",
+    insertTemplate: "插入模板",
+    modalCancel: "[Esc/Enter/q] 取消",
+    modalEditHint: "编辑 ~/.pi/agent/minifooter.yml 以修改配置。",
+    // biome-ignore lint/security/noSecrets: UI 文案, 非密钥(中文高熵误报)
+    modalReloadHint: "修改将在下次渲染时热加载。",
+    occupancyEmpty: "边框未嵌入参数。",
+    occupancyUsed: "已嵌入边框: __USED__。footer 中的重复项将隐藏。",
+    preview: "预览",
+    save: "保存",
+    sourcePreview: "源码预览",
+    // biome-ignore lint/security/noSecrets: UI 文案, 非密钥(中文高熵误报)
+    sourcePreviewPartial: "输入有效 footer_layout YAML 前源码预览不完整。",
+    tabForm: "表单",
+    tabSource: "YAML 源码",
+    modalLabels: {
+      alert: "提醒",
+      bl: "左下",
+      br: "右下",
+      cwd: "目录",
+      danger: "危险",
+      density: "密度",
+      editor_padding: "编辑器边距",
+      footer_layout: "页脚布局",
+      git: "分支",
+      icons: "图标",
+      items: "参数",
+      labels: "标签",
+      lang: "语言",
+      off: "关",
+      on: "开",
+      separator: "分隔符",
+      slots: "槽位",
+      thresholds: "阈值",
+      tl: "左上",
+      tr: "右上",
+      warn: "警告",
+    },
+    paramDescriptions: {
+      context_bar: "上下文用量条与百分比",
+      context_compact: "紧凑上下文百分比",
+      cost: "会话费用(USD)",
+      cwd_path: "当前工作目录",
+      git_branch: "分支与工作树状态",
+      mcp_skills: "MCP 服务与技能数量",
+      model_id: "当前模型原始 id",
+      model_name: "当前模型友好名称或 id",
+      native_footer: "原生 footer 扩展状态指示",
+      provider: "当前模型提供方",
+      session_time: "会话已运行时长",
+      thinking_mode: "当前思考级别",
+      tokens: "输入与输出 token 数量",
+    },
+    parameterReference: (n) => `${n} 个参数参考`,
+  },
+};
 
 /** 面板 HTML; 所有插值经 escapeHtml 或来自受限枚举 */
 export function buildPanelHtml(
@@ -188,23 +335,24 @@ export function buildPanelHtml(
 ) {
   const liveApply = options.liveApply === true;
   const e = escapeHtml;
+  const lang = config.lang;
+  const t = UI_TEXT[lang];
+  const td = (id: (typeof PARAMETER_IDS)[number]) => t.paramDescriptions[id];
   const slotOptions = [
     "none",
     ...PARAMETER_IDS,
   ];
   const slots = config.border_slots;
-  const footerText = e(footerLayoutToText(config.footer_layout));
   const sourceText = e(serializeConfig(config));
-  const t = config.thresholds;
+  const th = config.thresholds;
   const reference = PARAMETER_IDS.map(
-    (id) =>
-      `<div class="ref-row"><code>${id}</code><span>${parameterDescription(id)}</span></div>`,
+    (id) => `<div class="ref-row"><code>${id}</code><span>${td(id)}</span></div>`,
   ).join("");
   const legalValues = [
     "lang: zh | en",
     "style: minimalist",
     "density: compact | comfortable | spacious",
-    "editor_padding: default | compact | relaxed",
+    "editor_padding: default | relaxed",
     "git_branch_mode: mini | default | full",
     "cwd_path_mode: basename | relative | full",
     "separator: slash | dot | pipe | space",
@@ -246,6 +394,13 @@ export function buildPanelHtml(
     border: 1px solid var(--rule); font: inherit; padding: 4px 6px; resize: vertical;
   }
   #yaml_source { height: 300px; }
+  .layout-row { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 8px; }
+  .layout-row .row-sep { width: 110px; flex: none; }
+  .layout-row .row-items { flex: 1; min-width: 0; }
+  .layout-row .row-del { flex: none; }
+  .row-item { display: flex; gap: 4px; align-items: center; margin-bottom: 4px; }
+  .row-item select { flex: 1; }
+  .row-item .item-del, .row-del { padding: 2px 6px; }
   .checks { display: flex; gap: 16px; align-items: center; margin-top: 8px; }
   .checks label { display: flex; gap: 4px; align-items: center; color: var(--ink); margin: 0; }
   .section { margin-top: 14px; }
@@ -273,8 +428,8 @@ export function buildPanelHtml(
 <body>
 <h1>xpi-minifooter <span class="hint">/minifooter.yml</span></h1>
 <div class="tabs" role="tablist">
-  <button class="tab active" id="formTabButton" type="button" data-tab="formTab">Form</button>
-  <button class="tab" id="sourceTabButton" type="button" data-tab="sourceTab">YAML Source</button>
+  <button class="tab active" id="formTabButton" type="button" data-tab="formTab">${t.tabForm}</button>
+  <button class="tab" id="sourceTabButton" type="button" data-tab="sourceTab">${t.tabSource}</button>
 </div>
 <div id="formTab" class="tab-panel active">
   <div class="grid">
@@ -295,7 +450,6 @@ export function buildPanelHtml(
       config.editor_padding,
       [
         "default",
-        "compact",
         "relaxed",
       ],
     )}</div>
@@ -313,9 +467,9 @@ export function buildPanelHtml(
         "full",
       ],
     )}</div>
-    <div><label>thresholds.context_warn (0-100)</label><input id="context_warn" type="number" min="0" max="100" value="${t.context_warn}"></div>
-    <div><label>thresholds.context_alert (0-100)</label><input id="context_alert" type="number" min="0" max="100" value="${t.context_alert}"></div>
-    <div><label>thresholds.context_danger (0-100)</label><input id="context_danger" type="number" min="0" max="100" value="${t.context_danger}"></div>
+    <div><label>thresholds.context_warn (0-100)</label><input id="context_warn" type="number" min="0" max="100" value="${th.context_warn}"></div>
+    <div><label>thresholds.context_alert (0-100)</label><input id="context_alert" type="number" min="0" max="100" value="${th.context_alert}"></div>
+    <div><label>thresholds.context_danger (0-100)</label><input id="context_danger" type="number" min="0" max="100" value="${th.context_danger}"></div>
     <div class="checks">
       <label><input id="show_icons" type="checkbox" ${config.show_icons ? "checked" : ""}> show_icons</label>
       <label><input id="show_labels" type="checkbox" ${config.show_labels ? "checked" : ""}> show_labels</label>
@@ -331,37 +485,38 @@ export function buildPanelHtml(
     </div>
   </div>
   <div class="section">
-    <div class="title">footer_layout <span style="color:var(--muted)">(YAML list)</span></div>
-    <textarea id="footer_layout" spellcheck="false">${footerText}</textarea>
+    <div class="title">footer_layout</div>
+    <div id="layoutRows"></div>
+    <button id="addRow" class="secondary" type="button">${t.addRow}</button>
     <div id="layoutErr"></div>
   </div>
   <div class="section">
-    <div class="title">preview</div>
+    <div class="title">${t.preview}</div>
     <div id="preview"></div>
     <div id="occupancy"></div>
   </div>
 </div>
 <div id="sourceTab" class="tab-panel">
   <div class="section" style="margin-top:0">
-    <div class="title">complete minifooter.yml</div>
+    <div class="title">${t.completeYml}</div>
     <textarea id="yaml_source" spellcheck="false">${sourceText}</textarea>
     <div id="sourceErr"></div>
-    <button id="insertTemplate" class="secondary" type="button">Insert template</button>
+    <button id="insertTemplate" class="secondary" type="button">${t.insertTemplate}</button>
   </div>
   <div class="section">
-    <div class="title">${PARAMETER_IDS.length}-parameter reference</div>
+    <div class="title">${t.parameterReference(PARAMETER_IDS.length)}</div>
     <div class="ref">${reference}</div>
     <div class="legal">${e(legalValues)}</div>
   </div>
   <div class="section">
-    <div class="title">source preview</div>
+    <div class="title">${t.sourcePreview}</div>
     <div id="sourcePreview"></div>
   </div>
 </div>
 <div class="actions">
-  <button id="cancel" type="button">Cancel</button>
-  ${liveApply ? '<button id="apply" type="button">Apply</button>' : ""}
-  <button id="save" type="button" class="primary">Save</button>
+  <button id="cancel" type="button">${t.cancel}</button>
+  ${liveApply ? `<button id="apply" type="button">${t.apply}</button>` : ""}
+  <button id="save" type="button" class="primary">${t.save}</button>
 </div>
 <script>
 (function () {
@@ -369,6 +524,13 @@ export function buildPanelHtml(
   var TEMPLATE = ${JSON.stringify(serializeConfig(config))};
   var PARAMETER_IDS = ${JSON.stringify(PARAMETER_IDS)};
   var activeTab = "formTab";
+  var layoutRows = ${JSON.stringify(config.footer_layout)};
+  var TXT = ${JSON.stringify({
+    addItem: t.addItem,
+    occupancyEmpty: t.occupancyEmpty,
+    occupancyUsed: t.occupancyUsed,
+    sourcePreviewPartial: t.sourcePreviewPartial,
+  })};
   function el(id) { return document.getElementById(id); }
   function val(id) { return el(id).value; }
   function num(id) { return Number(val(id)); }
@@ -378,6 +540,69 @@ export function buildPanelHtml(
     var set = {};
     slots.forEach(function (id) { if (id && id !== "none") set[id] = true; });
     return set;
+  }
+  function rowSelectHtml(id, value, options) {
+    var opts = options.map(function (o) { return '<option value="' + o + '"' + (o === value ? ' selected' : '') + '>' + o + '</option>'; }).join('');
+    return '<select id="' + id + '">' + opts + '</select>';
+  }
+  function renderRows() {
+    var wrap = el('layoutRows');
+    if (!wrap) return;
+    var html = layoutRows.map(function (row, ri) {
+      var sep = rowSelectHtml('row-sep-' + ri, row.separator, ['slash', 'dot', 'pipe', 'space']);
+      var items = row.items.map(function (item, ii) {
+        return '<div class="row-item">' +
+          '<select id="row-item-' + ri + '-' + ii + '">' + PARAMETER_IDS.map(function (id) { return '<option value="' + id + '"' + (id === item ? ' selected' : '') + '>' + id + '</option>'; }).join('') + '</select>' +
+          '<button type="button" class="secondary item-del" data-ri="' + ri + '" data-ii="' + ii + '">×</button>' +
+        '</div>';
+      }).join('');
+      return '<div class="layout-row" data-ri="' + ri + '">' +
+        '<div class="row-sep">' + sep + '</div>' +
+        '<div class="row-items">' + items +
+          '<button type="button" class="secondary" data-add-item="' + ri + '">' + TXT.addItem + '</button>' +
+        '</div>' +
+        '<button type="button" class="secondary row-del" data-ri="' + ri + '">×</button>' +
+      '</div>';
+    }).join('');
+    wrap.innerHTML = html;
+    Array.prototype.forEach.call(wrap.querySelectorAll('.layout-row'), function (rowEl) {
+      var ri = Number(rowEl.getAttribute('data-ri'));
+      rowEl.querySelector('.row-sep select').addEventListener('change', function () {
+        layoutRows[ri].separator = rowEl.querySelector('.row-sep select').value;
+        renderPreview();
+      });
+      rowEl.querySelector('.row-del').addEventListener('click', function () {
+        layoutRows.splice(ri, 1);
+        renderRows();
+        renderPreview();
+      });
+      rowEl.querySelector('[data-add-item]').addEventListener('click', function () { addItem(ri); });
+      rowEl.querySelectorAll('.row-item').forEach(function (itemEl, ii) {
+        itemEl.querySelector('select').addEventListener('change', function () {
+          layoutRows[ri].items[ii] = itemEl.querySelector('select').value;
+          renderPreview();
+        });
+        itemEl.querySelector('.item-del').addEventListener('click', function () {
+          layoutRows[ri].items.splice(ii, 1);
+          renderRows();
+          renderPreview();
+        });
+      });
+    });
+  }
+  function addItem(ri) {
+    var used = {};
+    layoutRows[ri].items.forEach(function (id) { if (id) used[id] = true; });
+    var free = PARAMETER_IDS.filter(function (id) { return !used[id]; });
+    if (free.length === 0) return;
+    layoutRows[ri].items.push(free[0]);
+    renderRows();
+    renderPreview();
+  }
+  function readLayout() {
+    return layoutRows.map(function (row) {
+      return { separator: row.separator, items: row.items };
+    });
   }
   function parseLayout(raw) {
     if (raw.trim() === "") return { rows: [], error: null };
@@ -478,16 +703,15 @@ export function buildPanelHtml(
   }
   function slotValues() { return { top_left: val("top_left"), top_right: val("top_right"), bottom_left: val("bottom_left"), bottom_right: val("bottom_right") }; }
   function renderPreview() {
-    var layout = parseLayout(val("footer_layout"));
-    var err = el("layoutErr");
-    var save = el("save");
-    if (layout.error) { err.textContent = layout.error; save.disabled = true; el("preview").textContent = ""; return; }
-    err.textContent = "";
+    var rows = readLayout();
+    var err = el('layoutErr');
+    var save = el('save');
+    err.textContent = '';
     save.disabled = false;
     var slots = slotValues();
-    el("preview").textContent = previewText(layout.rows, occupied());
+    el('preview').textContent = previewText(rows, occupied());
     var used = Object.keys(occupied());
-    el("occupancy").textContent = used.length ? "Embedded in border: " + used.join(", ") + ". Footer duplicates hidden." : "No parameters embedded in border.";
+    el('occupancy').textContent = used.length ? TXT.occupancyUsed.replace('__USED__', used.join(', ')) : TXT.occupancyEmpty;
   }
   function renderSourcePreview() {
     var parsed = parseSource(val("yaml_source"));
@@ -499,7 +723,7 @@ export function buildPanelHtml(
     });
     var rows = parsed.footer_layout || [];
     el("sourcePreview").textContent = previewText(rows, slots);
-    el("sourceErr").textContent = parsed.footer_layout === null ? "Source preview is partial until valid footer_layout YAML is entered." : "";
+    el("sourceErr").textContent = parsed.footer_layout === null ? TXT.sourcePreviewPartial : "";
   }
   function switchTab(tab) {
     activeTab = tab;
@@ -510,7 +734,7 @@ export function buildPanelHtml(
   ["formTabButton", "sourceTabButton"].forEach(function (id) { el(id).addEventListener("click", function () { switchTab(el(id).getAttribute("data-tab")); }); });
   ["lang", "style", "density", "editor_padding", "cwd_path_mode", "git_branch_mode"].forEach(function (id) { el(id).addEventListener("change", renderPreview); });
   ["context_warn", "context_alert", "context_danger", "show_icons", "show_labels", "top_left", "top_right", "bottom_left", "bottom_right"].forEach(function (id) { el(id).addEventListener("input", renderPreview); });
-  el("footer_layout").addEventListener("input", renderPreview);
+  el("addRow").addEventListener("click", function () { layoutRows.push({ separator: "slash", items: ["git_branch"] }); renderRows(); renderPreview(); });
   el("yaml_source").addEventListener("input", renderSourcePreview);
   el("insertTemplate").addEventListener("click", function () { el("yaml_source").value = TEMPLATE; renderSourcePreview(); el("yaml_source").focus(); });
   function closePanel() {
@@ -525,18 +749,18 @@ export function buildPanelHtml(
   var apply = el("apply");
   if (apply) apply.addEventListener("click", function () { sendAction("apply"); });
   function collect() {
-    var layout = parseLayout(val("footer_layout"));
     return {
-      lang: val("lang"), style: val("style"), density: val("density"), editor_padding: val("editor_padding"),
-      cwd_path_mode: val("cwd_path_mode"), git_branch_mode: val("git_branch_mode"),
-      show_icons: checked("show_icons"), show_labels: checked("show_labels"),
-      thresholds: { context_warn: num("context_warn"), context_alert: num("context_alert"), context_danger: num("context_danger") },
-      border_slots: { top_left: val("top_left"), top_right: val("top_right"), bottom_left: val("bottom_left"), bottom_right: val("bottom_right") },
-      footer_layout: layout.rows || [],
+      lang: val('lang'), style: val('style'), density: val('density'), editor_padding: val('editor_padding'),
+      cwd_path_mode: val('cwd_path_mode'), git_branch_mode: val('git_branch_mode'),
+      show_icons: checked('show_icons'), show_labels: checked('show_labels'),
+      thresholds: { context_warn: num('context_warn'), context_alert: num('context_alert'), context_danger: num('context_danger') },
+      border_slots: { top_left: val('top_left'), top_right: val('top_right'), bottom_left: val('bottom_left'), bottom_right: val('bottom_right') },
+      footer_layout: readLayout(),
     };
   }
   el("cancel").addEventListener("click", closePanel);
   document.addEventListener("keydown", function (event) { if (event.key === "Escape") closePanel(); });
+  renderRows();
   renderPreview();
   renderSourcePreview();
 })();

@@ -351,22 +351,6 @@ describe("addEditorPadding", () => {
       ),
     ).toEqual(lines);
   });
-  test("compact inserts blank lines on both sides", () => {
-    expect(
-      addEditorPadding(
-        [
-          ...lines,
-        ],
-        "compact",
-      ),
-    ).toEqual([
-      "┌─ top ─┐",
-      "",
-      "content",
-      "",
-      "└─ bottom ─┘",
-    ]);
-  });
   test("relaxed inserts blank lines on both sides", () => {
     expect(
       addEditorPadding(

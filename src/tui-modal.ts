@@ -10,7 +10,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Component, KeybindingsManager, TUI } from "@earendil-works/pi-tui";
 import { matchesKey } from "@earendil-works/pi-tui";
 import type { MinifooterConfig } from "./config.js";
-import { footerLayoutToText } from "./panel.js";
+import { footerLayoutToText, UI_TEXT } from "./panel.js";
 
 const SLOT_ORDER = [
   "top_left",
@@ -19,34 +19,38 @@ const SLOT_ORDER = [
   "bottom_right",
 ] as const;
 
-function occupancyHint(slots: MinifooterConfig["border_slots"]): string {
+function occupancyHint(
+  lang: "zh" | "en",
+  slots: MinifooterConfig["border_slots"],
+): string {
+  const t = UI_TEXT[lang];
   const used = SLOT_ORDER.map((key) => slots[key]).filter((id) => id !== "none");
   return used.length > 0
-    ? `Embedded in border: ${used.join(", ")}. Footer duplicates hidden.`
-    : "No parameters embedded in border.";
+    ? t.occupancyUsed.replace("__USED__", used.join(", "))
+    : t.occupancyEmpty;
 }
 
 /** 当前配置 → 只读 modal 行(纯函数, 可单测) */
 export function buildModalLines(config: MinifooterConfig): string[] {
   const slots = config.border_slots;
+  const t = UI_TEXT[config.lang];
+  const L = t.modalLabels;
   return [
     "xpi-minifooter",
     "",
-    `lang: ${config.lang}  density: ${config.density}  icons: ${config.show_icons ? "on" : "off"}  labels: ${config.show_labels ? "on" : "off"}`,
-    `cwd: ${config.cwd_path_mode}  git: ${config.git_branch_mode}  editor_padding: ${config.editor_padding}`,
-    `thresholds: warn ${config.thresholds.context_warn} / alert ${config.thresholds.context_alert} / danger ${config.thresholds.context_danger}`,
-    `slots: tl ${slots.top_left} · tr ${slots.top_right} · bl ${slots.bottom_left} · br ${slots.bottom_right}`,
-    occupancyHint(slots),
-    "",
-    "footer_layout:",
+    `${L.lang}: ${config.lang}  ${L.density}: ${config.density}  ${L.icons}: ${config.show_icons ? L.on : L.off}  ${L.labels}: ${config.show_labels ? L.on : L.off}`,
+    `${L.cwd}: ${config.cwd_path_mode}  ${L.git}: ${config.git_branch_mode}  ${L.editor_padding}: ${config.editor_padding}`,
+    `${L.thresholds}: ${L.warn} ${config.thresholds.context_warn} / ${L.alert} ${config.thresholds.context_alert} / ${L.danger} ${config.thresholds.context_danger}`,
+    `${L.slots}: ${L.tl} ${slots.top_left} · ${L.tr} ${slots.top_right} · ${L.bl} ${slots.bottom_left} · ${L.br} ${slots.bottom_right}`,
+    occupancyHint(config.lang, slots),
     ...footerLayoutToText(config.footer_layout)
       .split("\n")
       .map((l) => `  ${l}`),
     "",
-    "Edit ~/.pi/agent/minifooter.yml to change values.",
-    "Changes hot-reload on next render.",
+    t.modalEditHint,
+    t.modalReloadHint,
     "",
-    "[Esc/Enter/q] cancel",
+    t.modalCancel,
   ];
 }
 
