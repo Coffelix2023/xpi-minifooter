@@ -6,6 +6,7 @@
  */
 import type { Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import type { BorderSlotEntry, BorderSlotValue } from "./config.js";
 
 export type BorderSlotId = "top_left" | "top_right" | "bottom_left" | "bottom_right";
 
@@ -52,10 +53,10 @@ export function fitBorder(
 }
 
 export interface BorderSlots {
-  bottom_left: string | string[];
-  bottom_right: string | string[];
-  top_left: string | string[];
-  top_right: string | string[];
+  bottom_left: BorderSlotValue | "" | (BorderSlotEntry | "")[];
+  bottom_right: BorderSlotValue | "" | (BorderSlotEntry | "")[];
+  top_left: BorderSlotValue | "" | (BorderSlotEntry | "")[];
+  top_right: BorderSlotValue | "" | (BorderSlotEntry | "")[];
 }
 
 /** 3.2: 至少一个槽位非空(非 none/空串)才安装 editor */
@@ -66,7 +67,10 @@ export function shouldInstallEditor(slots: BorderSlots): boolean {
       : [
           value,
         ];
-    return values.some((v) => v.trim() !== "" && v !== "none");
+    return values.some((item) => {
+      const id = typeof item === "string" ? item : item.id;
+      return id.trim() !== "" && id !== "none";
+    });
   });
 }
 

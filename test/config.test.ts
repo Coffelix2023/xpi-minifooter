@@ -2,7 +2,12 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { DEFAULT_CONFIG, loadConfig, parseConfig } from "../src/config.js";
+import {
+  DEFAULT_CONFIG,
+  loadConfig,
+  parseConfig,
+  serializeConfig,
+} from "../src/config.js";
 
 describe("config schema (task 1.2)", () => {
   test("missing file loads defaults", () => {
@@ -104,6 +109,32 @@ describe("config schema (task 1.2)", () => {
     ).toBeNull();
   });
 
+  test("round-trips border slot objects with showIcon", () => {
+    const config = parseConfig(
+      "border_slots:\n  top_left:\n    - id: git_branch\n      showIcon: false\n    - model_name\n  bottom_right: { id: cwd_path, showIcon: true }",
+    );
+    expect(config?.border_slots.top_left).toEqual([
+      {
+        id: "git_branch",
+        showIcon: false,
+      },
+      "model_name",
+    ]);
+    expect(config?.border_slots.bottom_right).toEqual([
+      {
+        id: "cwd_path",
+        showIcon: true,
+      },
+    ]);
+    expect(config && parseConfig(serializeConfig(config))).toEqual(config);
+  });
+
+  test("rejects invalid border slot objects", () => {
+    expect(parseConfig("border_slots:\n  top_left: { id: none }")).toBeNull();
+    expect(
+      parseConfig("border_slots:\n  top_left: { id: git_branch, showIcon: yes }"),
+    ).toBeNull();
+  });
   test("rejects removed icon, label, and native footer fields", () => {
     expect(parseConfig("icons: { git_branch: '' }")).toBeNull();
     expect(parseConfig("labels: { git_branch: Branch }")).toBeNull();

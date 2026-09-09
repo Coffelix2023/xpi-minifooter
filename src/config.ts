@@ -30,14 +30,22 @@ export const PARAMETER_IDS = [
 
 export type ParameterId = (typeof PARAMETER_IDS)[number];
 
-export type BorderSlot = (ParameterId | "none")[];
-export type BorderSlotValue = BorderSlot | ParameterId | "none";
-export function slotValues(slot: BorderSlotValue): BorderSlot {
+export interface BorderSlotItem {
+  id: ParameterId;
+  showIcon?: boolean;
+}
+export type BorderSlotEntry = ParameterId | "none" | BorderSlotItem;
+export type BorderSlot = BorderSlotEntry[];
+export type BorderSlotValue = BorderSlot | BorderSlotEntry;
+export function slotItems(slot: BorderSlotValue): BorderSlot {
   return Array.isArray(slot)
     ? slot
     : [
         slot,
       ];
+}
+export function slotValues(slot: BorderSlotValue): (ParameterId | "none")[] {
+  return slotItems(slot).map((item) => (typeof item === "string" ? item : item.id));
 }
 export function firstSlotValue(slot: BorderSlotValue): ParameterId | "none" {
   return slotValues(slot)[0] ?? "none";
@@ -47,9 +55,17 @@ const borderSlotValueSchema = Type.Union([
   ...PARAMETER_IDS.map((id) => Type.Literal(id)),
   Type.Literal("none"),
 ]);
-const borderSlotSchema = Type.Union([
+const borderSlotItemSchema = Type.Object({
+  id: Type.Union(PARAMETER_IDS.map((id) => Type.Literal(id))),
+  showIcon: Type.Optional(Type.Boolean()),
+});
+const borderSlotEntrySchema = Type.Union([
   borderSlotValueSchema,
-  Type.Array(borderSlotValueSchema, {
+  borderSlotItemSchema,
+]);
+const borderSlotSchema = Type.Union([
+  borderSlotEntrySchema,
+  Type.Array(borderSlotEntrySchema, {
     maxItems: 2,
   }),
 ]);
@@ -303,11 +319,7 @@ export function parseConfigWithError(raw: string): ConfigParseResult {
       ...Object.fromEntries(
         Object.entries(partial.border_slots ?? {}).map(([key, value]) => [
           key,
-          Array.isArray(value)
-            ? value
-            : [
-                value,
-              ],
+          slotItems(value),
         ]),
       ),
     },
@@ -317,7 +329,7 @@ export function parseConfigWithError(raw: string): ConfigParseResult {
     },
   };
   const duplicateInSlot = Object.values(merged.border_slots).some((slot) => {
-    const ids = slot.filter((id) => id !== "none");
+    const ids = slotValues(slot).filter((id) => id !== "none");
     return new Set(ids).size !== ids.length;
   });
   if (

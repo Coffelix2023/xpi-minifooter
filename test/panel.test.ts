@@ -63,6 +63,51 @@ describe("buildPanelHtml", () => {
     expect(html).toContain('id="preview"');
   });
 
+  test("renders none for both border positions and independent icon controls", () => {
+    const html = buildPanelHtml({
+      ...structuredClone(DEFAULT_CONFIG),
+      border_slots: {
+        ...structuredClone(DEFAULT_CONFIG.border_slots),
+        top_left: [
+          {
+            id: "git_branch",
+            showIcon: false,
+          },
+          {
+            id: "model_name",
+            showIcon: true,
+          },
+        ],
+      },
+    });
+    for (const slot of [
+      "top_left",
+      "top_right",
+      "bottom_left",
+      "bottom_right",
+    ]) {
+      expect(html).toContain(`id="${slot}_1_show_icon"`);
+      expect(html).toContain(`id="${slot}_2_show_icon"`);
+    }
+    expect(html.match(/<option value="none"/g)).toHaveLength(8);
+    expect(html).toContain("function readBorderSlot(slot)");
+    expect(html).toContain("showIcon: checked(slot + '_' + index + '_show_icon')");
+  });
+
+  test("provides bounded local font size controls", () => {
+    const html = buildPanelHtml(enConfig());
+    expect(html).toContain('id="fontSizeDown"');
+    expect(html).toContain('id="fontSizeUp"');
+    expect(html).toContain('id="fontSizeValue"');
+    expect(html).toContain("--panel-font-size: 12px");
+    expect(html).toContain("var MIN_FONT_SIZE = 10");
+    expect(html).toContain("var MAX_FONT_SIZE = 16");
+    expect(html).toContain("el('fontSizeDown').disabled = FONT_SIZE <= MIN_FONT_SIZE");
+    expect(html).toContain("el('fontSizeUp').disabled = FONT_SIZE >= MAX_FONT_SIZE");
+    expect(html).toContain("@media (max-width: 520px)");
+    expect(html).not.toContain("font_size");
+  });
+
   test("docks the action bar to the window bottom", () => {
     const html = buildPanelHtml(enConfig());
     expect(html).toContain(

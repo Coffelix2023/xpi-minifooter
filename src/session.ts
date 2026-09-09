@@ -28,6 +28,7 @@ import {
   loadConfig,
   loadConfigWithError,
   type MinifooterConfig,
+  slotItems,
   slotValues,
 } from "./config.js";
 import {
@@ -331,7 +332,7 @@ export function renderSegment(
   }
   const decorated = decorateSegment(id, text, {
     lang: config.lang,
-    show_icons: showIcon ?? config.show_icons,
+    show_icons: config.show_icons && (showIcon ?? true),
     show_labels: config.show_labels,
   });
   if (decorated === null) return null;
@@ -363,7 +364,7 @@ export function buildFooterRows(
 ): FooterRowData[] {
   const activeBorderIds = new Set(
     Object.values(config.border_slots)
-      .flat()
+      .flatMap(slotValues)
       .filter((id) => id !== "none"),
   );
   const renderRows = (
@@ -411,10 +412,13 @@ export function buildBorderSegments(
     "bottom_left",
     "bottom_right",
   ] as const) {
-    const ids = slotValues(config.border_slots[slot]);
-    const rendered = ids
-      .filter((id) => id !== "none")
-      .map((id) => renderSegment(id, config, inputs, width, runPorcelain))
+    const rendered = slotItems(config.border_slots[slot])
+      .filter((item) => item !== "none")
+      .map((item) =>
+        typeof item === "string"
+          ? renderSegment(item, config, inputs, width, runPorcelain)
+          : renderSegment(item.id, config, inputs, width, runPorcelain, item.showIcon),
+      )
       .filter((segment): segment is FooterSegment => segment !== null);
     out[slot] =
       rendered.length === 0

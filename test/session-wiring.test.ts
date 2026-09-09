@@ -644,6 +644,59 @@ describe("SegmentInputs consumers", () => {
     );
   });
 
+  test("border slot showIcon respects item and global settings", () => {
+    const inputs: SegmentInputs = {
+      branchName: "main",
+      contextPct: null,
+      cwd: "/tmp/project",
+      elapsedSeconds: null,
+      home: "/tmp",
+      mcpCount: 0,
+      model: undefined,
+      modelNames: {},
+      nativeStatuses: [],
+      skillCount: 0,
+      thinkingLevel: null,
+      usage: {
+        costTotal: null,
+        hasTurn: false,
+        inputTokens: 0,
+        outputTokens: 0,
+      },
+    };
+    const withIcon = buildBorderSegments(
+      fakeConfig({
+        border_slots: {
+          ...structuredClone(DEFAULT_CONFIG.border_slots),
+          top_left: {
+            id: "git_branch",
+            showIcon: true,
+          },
+        },
+      }),
+      inputs,
+      120,
+      () => null,
+    );
+    expect(withIcon.top_left?.text).not.toBe("main");
+    const withoutIcon = buildBorderSegments(
+      fakeConfig({
+        show_icons: false,
+        border_slots: {
+          ...structuredClone(DEFAULT_CONFIG.border_slots),
+          top_left: {
+            id: "git_branch",
+            showIcon: true,
+          },
+        },
+      }),
+      inputs,
+      120,
+      () => null,
+    );
+    expect(withoutIcon.top_left?.text).toBe("main");
+  });
+
   test("item showIcon=false overrides global icons", () => {
     const inputs: SegmentInputs = {
       branchName: "main",

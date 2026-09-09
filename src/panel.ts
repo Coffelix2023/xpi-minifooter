@@ -13,7 +13,7 @@ import {
   type MinifooterConfig,
   PARAMETER_IDS,
   serializeConfig,
-  slotValues,
+  slotItems,
 } from "./config.js";
 
 const ERROR_LINE_PATTERN = /line (\d+)/i;
@@ -428,6 +428,7 @@ export function buildPanelHtml(
     zh: UI_TEXT.zh,
   });
   const slotOptions = [
+    "none",
     ...PARAMETER_IDS,
   ];
   const slots = config.border_slots;
@@ -448,6 +449,23 @@ export function buildPanelHtml(
   ].join(" · ");
   const select = (id: string, value: string, options: readonly string[]) =>
     selectHtml(id, value, options);
+  const borderSlot = (id: keyof MinifooterConfig["border_slots"], label: string) => {
+    const values = slotItems(slots[id]);
+    const controls = [
+      0,
+      1,
+    ]
+      .map((index) => {
+        const item = values[index];
+        let value = "none";
+        if (item !== undefined) value = typeof item === "string" ? item : item.id;
+        const showIcon = typeof item !== "object" || item.showIcon !== false;
+        const controlId = `${id}_${index + 1}`;
+        return `<div class="slot-control">${select(controlId, value, slotOptions)}<label class="slot-icon"><input id="${controlId}_show_icon" type="checkbox" ${showIcon ? "checked" : ""}> showIcon</label></div>`;
+      })
+      .join("");
+    return `<div><label data-i18n="${label}">${label}</label><div class="slot-controls">${controls}</div></div>`;
+  };
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -457,15 +475,20 @@ export function buildPanelHtml(
     --canvas: ${TOKENS.canvas}; --ink: ${TOKENS.ink}; --muted: ${TOKENS.muted};
     --rule: ${TOKENS.rule}; --primary: ${TOKENS.primary}; --accent: ${TOKENS.accent};
     --on-accent: ${TOKENS["on-accent"]}; --error: ${TOKENS.error};
+    --panel-font-size: 12px;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0; background: var(--canvas); color: var(--ink);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 12px; line-height: 1.4; padding: 16px 20px 64px;
+    font-size: var(--panel-font-size); line-height: 1.4; padding: 16px 20px 64px;
   }
-  h1 { font-size: 14px; font-weight: 700; margin: 0 0 12px; }
-  h1 .hint { color: var(--muted); font-weight: 400; font-size: 12px; }
+  .panel-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  h1 { font-size: calc(var(--panel-font-size) + 2px); font-weight: 700; margin: 0 0 12px; }
+  h1 .hint { color: var(--muted); font-weight: 400; font-size: var(--panel-font-size); }
+  .font-controls { display: flex; align-items: center; gap: 4px; margin-bottom: 12px; }
+  .font-controls button { min-width: 28px; padding: 2px 8px; }
+  .font-controls span { min-width: 5ch; text-align: center; color: var(--muted); }
   .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--rule); margin-bottom: 12px; }
   .tab { padding: 6px 10px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
   .tab.active { color: var(--ink); border-bottom-color: var(--primary); }
@@ -489,6 +512,10 @@ export function buildPanelHtml(
   .layout-row .row-del { flex: none; }
   .row-item { display: flex; gap: 4px; align-items: center; margin-bottom: 4px; }
   .row-item select { flex: 1; }
+  .slot-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+  .slot-control { display: flex; min-width: 0; gap: 4px; align-items: center; }
+  .slot-control select { min-width: 0; flex: 1; }
+  .slot-icon { display: flex; flex: none; gap: 2px; align-items: center; margin: 0; color: var(--muted); white-space: nowrap; font-size: 11px; }
   .row-item .item-del, .row-del { padding: 2px 6px; }
   .checks { display: flex; gap: 16px; align-items: center; margin-top: 8px; }
   .checks label { display: flex; gap: 4px; align-items: center; color: var(--ink); margin: 0; }
@@ -512,10 +539,17 @@ export function buildPanelHtml(
   button.primary { background: var(--primary); border-color: var(--primary); color: var(--on-accent); }
   button.secondary { padding: 4px 8px; color: var(--muted); }
   button:disabled { opacity: 0.5; cursor: not-allowed; }
+  @media (max-width: 520px) {
+    body { padding-left: 12px; padding-right: 12px; }
+    .grid { grid-template-columns: 1fr; }
+    .layout-row { flex-wrap: wrap; }
+    .layout-row .row-sep { width: 100%; }
+    .layout-row .row-items { width: calc(100% - 36px); }
+  }
 </style>
 </head>
 <body>
-<h1><span data-i18n="title">xpi-minifooter</span> <span class="hint">/minifooter.yml</span></h1>
+<div class="panel-header"><h1><span data-i18n="title">xpi-minifooter</span> <span class="hint">/minifooter.yml</span></h1><div class="font-controls" aria-label="font size"><button id="fontSizeDown" type="button" title="Decrease font size" aria-label="Decrease font size">−</button><span id="fontSizeValue" aria-live="polite">12px</span><button id="fontSizeUp" type="button" title="Increase font size" aria-label="Increase font size">+</button></div></div>
 <div class="tabs" role="tablist">
   <button class="tab active" id="formTabButton" type="button" data-tab="formTab" data-i18n="tabForm">${t.tabForm}</button>
   <button class="tab" id="sourceTabButton" type="button" data-tab="sourceTab" data-i18n="tabSource">${t.tabSource}</button>
@@ -572,38 +606,10 @@ export function buildPanelHtml(
   <div class="section">
     <div class="title" data-i18n="border_slots">border_slots</div>
     <div class="grid">
-      <div><label data-i18n="top_left">top_left</label>${select("top_left_1", slotValues(slots.top_left)[0] ?? "", slotOptions)}${select(
-        "top_left_2",
-        slotValues(slots.top_left)[1] ?? "",
-        [
-          "",
-          ...slotOptions,
-        ],
-      )}</div>
-      <div><label data-i18n="top_right">top_right</label>${select("top_right_1", slotValues(slots.top_right)[0] ?? "", slotOptions)}${select(
-        "top_right_2",
-        slotValues(slots.top_right)[1] ?? "",
-        [
-          "",
-          ...slotOptions,
-        ],
-      )}</div>
-      <div><label data-i18n="bottom_left">bottom_left</label>${select("bottom_left_1", slotValues(slots.bottom_left)[0] ?? "", slotOptions)}${select(
-        "bottom_left_2",
-        slotValues(slots.bottom_left)[1] ?? "",
-        [
-          "",
-          ...slotOptions,
-        ],
-      )}</div>
-      <div><label data-i18n="bottom_right">bottom_right</label>${select("bottom_right_1", slotValues(slots.bottom_right)[0] ?? "", slotOptions)}${select(
-        "bottom_right_2",
-        slotValues(slots.bottom_right)[1] ?? "",
-        [
-          "",
-          ...slotOptions,
-        ],
-      )}</div>
+      ${borderSlot("top_left", "top_left")}
+      ${borderSlot("top_right", "top_right")}
+      ${borderSlot("bottom_left", "bottom_left")}
+      ${borderSlot("bottom_right", "bottom_right")}
     </div>
   </div>
   <div class="section">
@@ -663,6 +669,19 @@ export function buildPanelHtml(
     occupancyUsed: t.occupancyUsed,
     sourcePreviewPartial: t.sourcePreviewPartial,
   })};
+  var FONT_SIZE = 12;
+  var MIN_FONT_SIZE = 10;
+  var MAX_FONT_SIZE = 16;
+  function refreshFontSize() {
+    document.documentElement.style.setProperty('--panel-font-size', FONT_SIZE + 'px');
+    el('fontSizeValue').textContent = FONT_SIZE + 'px';
+    el('fontSizeDown').disabled = FONT_SIZE <= MIN_FONT_SIZE;
+    el('fontSizeUp').disabled = FONT_SIZE >= MAX_FONT_SIZE;
+  }
+  function adjustFontSize(delta) {
+    FONT_SIZE = Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, FONT_SIZE + delta));
+    refreshFontSize();
+  }
   function showFeedback(message, ok) {
     var feedback = el("feedback");
     feedback.textContent = message;
@@ -879,11 +898,19 @@ export function buildPanelHtml(
     lines.push(bottomLeft + new Array(24).join(" ") + bottomRight);
     return lines.join("\\n");
   }
+  function readBorderSlot(slot) {
+    var items = [];
+    [1, 2].forEach(function (index) {
+      var id = val(slot + '_' + index);
+      if (id && id !== 'none') items.push({ id: id, showIcon: checked(slot + '_' + index + '_show_icon') });
+    });
+    return items.length > 0 ? items : ['none'];
+  }
   function slotValues() { return {
-    top_left: [val("top_left_1"), val("top_left_2")].filter(Boolean),
-    top_right: [val("top_right_1"), val("top_right_2")].filter(Boolean),
-    bottom_left: [val("bottom_left_1"), val("bottom_left_2")].filter(Boolean),
-    bottom_right: [val("bottom_right_1"), val("bottom_right_2")].filter(Boolean),
+    top_left: readBorderSlot('top_left'),
+    top_right: readBorderSlot('top_right'),
+    bottom_left: readBorderSlot('bottom_left'),
+    bottom_right: readBorderSlot('bottom_right'),
   }; }
   function renderPreview() {
     var rows = readLayout();
@@ -917,7 +944,7 @@ export function buildPanelHtml(
   ["formTabButton", "sourceTabButton"].forEach(function (id) { el(id).addEventListener("click", function () { switchTab(el(id).getAttribute("data-tab")); }); });
   el("lang").addEventListener("change", refreshLanguage);
   ["style", "density", "editor_padding", "cwd_path_mode", "git_branch_mode"].forEach(function (id) { el(id).addEventListener("change", renderPreview); });
-  ["context_warn", "context_alert", "context_danger", "show_icons", "show_labels", "top_left_1", "top_left_2", "top_right_1", "top_right_2", "bottom_left_1", "bottom_left_2", "bottom_right_1", "bottom_right_2"].forEach(function (id) { el(id).addEventListener("input", renderPreview); });
+  ["context_warn", "context_alert", "context_danger", "show_icons", "show_labels", "top_left_1", "top_left_2", "top_right_1", "top_right_2", "bottom_left_1", "bottom_left_2", "bottom_right_1", "bottom_right_2", "top_left_1_show_icon", "top_left_2_show_icon", "top_right_1_show_icon", "top_right_2_show_icon", "bottom_left_1_show_icon", "bottom_left_2_show_icon", "bottom_right_1_show_icon", "bottom_right_2_show_icon"].forEach(function (id) { el(id).addEventListener("input", renderPreview); });
   el("addRow").addEventListener("click", function () { layoutRows.push({ separator: "slash", items: ["git_branch"] }); renderRows(); renderPreview(); });
   el("addNativeRow").addEventListener("click", function () { nativeLayoutRows.push({ separator: "slash", items: ["native_footer"] }); renderRows(); renderPreview(); });
   el("yaml_source").addEventListener("input", renderSourcePreview);
@@ -950,6 +977,9 @@ export function buildPanelHtml(
   }
   el("cancel").addEventListener("click", closePanel);
   document.addEventListener("keydown", function (event) { if (event.key === "Escape") closePanel(); });
+  el('fontSizeDown').addEventListener('click', function () { adjustFontSize(-1); });
+  el('fontSizeUp').addEventListener('click', function () { adjustFontSize(1); });
+  refreshFontSize();
   renderRows();
   renderPreview();
   renderSourcePreview();
