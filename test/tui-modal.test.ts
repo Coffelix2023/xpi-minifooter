@@ -39,6 +39,8 @@ describe("buildModalLines (TUI fallback)", () => {
     expect(text).toContain("lang: en");
     expect(text).toContain("editor_padding: default");
     expect(text).toContain("warn 50 / alert 75 / danger 80");
+    expect(text).toContain("cost currency: CNY @7.2");
+    expect(text).toContain("usage detail: off");
     expect(text).toContain("No parameters embedded in border.");
   });
 

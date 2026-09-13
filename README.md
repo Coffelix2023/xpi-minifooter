@@ -34,6 +34,11 @@ density: comfortable       # compact | comfortable | spacious
 show_icons: true
 show_labels: false
 
+# Cost currency and usage detail.
+cost_currency: CNY           # CNY (converted by usd_to_cny_rate) | USD
+usd_to_cny_rate: 7.2         # static rate, CNY only, no network call
+usage_detail: off            # off | tokens | cost | both
+
 # Optional editor border content. Use none to keep Pi's native editor.
 border_slots:
   top_left: none
@@ -69,13 +74,15 @@ thresholds:
 | `cwd_path` | Basename, home-relative, or full cwd | Cwd unavailable |
 | `context_bar` | Filled/empty bar and percentage | Context window unknown shows `~%` |
 | `context_compact` | Compact context percentage | Context window unknown shows `~` |
-| `tokens` | Input/output totals | Before the first model response |
-| `cost` | Session USD cost | Cost unavailable |
+| `tokens` | Input/output totals; `usage_detail` adds cache read/write | Before the first model response |
+| `cost` | Session cost in `cost_currency` (default CNY) | Cost unavailable |
 | `session_time` | Elapsed session time | Start time unavailable |
 | `native_footer` | Native footer extension statuses (with indicator lights) | No extension statuses |
 | `mcp_skills` | MCP server and skill counts | Both counts are zero |
 
 `footer_layout` accepts only these 13 ids. Lines are width-safe: `cwd_path` and `native_footer` compress first, then tail segments are dropped one at a time.
+
+`usage_detail` detail marks: `↑` input, `↓` output, `R` cacheRead, `W` cacheWrite. Cost detail reuses the same marks for the four cost parts. The CNY rate is a static configured value — the footer never calls the network.
 
 ## Development
 

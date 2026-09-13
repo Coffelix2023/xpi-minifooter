@@ -54,6 +54,7 @@ export function buildModalLines(
     `${L.lang}: ${config.lang}  ${L.density}: ${config.density}  ${L.icons}: ${config.show_icons ? L.on : L.off}  ${L.labels}: ${config.show_labels ? L.on : L.off}  native_footer: ${config.native_footer_layout.length > 0 ? L.on : L.off}`,
     `${L.cwd}: ${config.cwd_path_mode}  ${L.git}: ${config.git_branch_mode}  ${L.editor_padding}: ${config.editor_padding}`,
     `${L.thresholds}: ${L.warn} ${config.thresholds.context_warn} / ${L.alert} ${config.thresholds.context_alert} / ${L.danger} ${config.thresholds.context_danger}`,
+    `${L.cost_currency}: ${config.cost_currency}${config.cost_currency === "CNY" ? ` @${config.usd_to_cny_rate}` : ""}  ${L.usage_detail}: ${config.usage_detail}`,
     `${L.slots}: ${L.tl} ${slotValues(slots.top_left).join(", ")} · ${L.tr} ${slotValues(slots.top_right).join(", ")} · ${L.bl} ${slotValues(slots.bottom_left).join(", ")} · ${L.br} ${slotValues(slots.bottom_right).join(", ")}`,
     options.contextTokens !== null &&
     options.contextTokens !== undefined &&

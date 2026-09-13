@@ -364,7 +364,27 @@ export function resolveContextCompact(
 
 // ─── 2.7 tokens / cost / session_time ───────────────────────────────────────
 
+/** usage_detail 配置(plan.md 决策 2):off = 现状紧凑格式 */
+export type UsageDetail = "off" | "tokens" | "cost" | "both";
+
+/** cost 段的货币与明细选项(plan.md 决策 1、3) */
+export interface CostOptions {
+  currency: "CNY" | "USD";
+  detail: UsageDetail;
+  rate: number;
+}
+
 export interface SessionUsage {
+  /** 缓存读取 token;旧调用方缺省按 0(plan.md 决策 5) */
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  /** 四类费用(USD);缺省按 0 */
+  costDetail?: {
+    cacheRead: number;
+    cacheWrite: number;
+    input: number;
+    output: number;
+  };
   /** 总成本(USD);未知 → null */
   costTotal: number | null;
   /** 有过至少一轮 LLM 响应 */
@@ -379,19 +399,49 @@ function formatTokenCount(n: number): string {
   return String(n);
 }
 
-/** tokens 段: in/out 合计;无轮次 → null(不把 0 当真实用量) */
+/** 明细未提供费用分项时的占位 */
+const ZERO_COST_DETAIL = {
+  cacheRead: 0,
+  cacheWrite: 0,
+  input: 0,
+  output: 0,
+} as const;
+
+/** tokens 段: in/out 合计;usage_detail 含 tokens 时追加缓存读写;无轮次 → null */
 export function resolveTokens(
   _ctx: SegmentContext,
   usage: SessionUsage,
+  detail: UsageDetail,
 ): string | null {
   if (!usage.hasTurn) return null;
-  return `↑${formatTokenCount(usage.inputTokens)} ↓${formatTokenCount(usage.outputTokens)}`;
+  const base = `↑${formatTokenCount(usage.inputTokens)} ↓${formatTokenCount(usage.outputTokens)}`;
+  if (detail !== "tokens" && detail !== "both") return base;
+  return `${base} R${formatTokenCount(usage.cacheReadTokens ?? 0)} W${formatTokenCount(usage.cacheWriteTokens ?? 0)}`;
 }
 
-/** cost 段: `$X.YZZ`;未知 → null */
-export function resolveCost(_ctx: SegmentContext, usage: SessionUsage): string | null {
+/**
+ * cost 段: 货币符号 + 3 位小数总额(CNY 按 rate 换算);未知 → null。
+ * usage_detail 含 cost 时追加四类费用明细(4 位小数, 缓存档常低于 1 分)。
+ */
+export function resolveCost(
+  _ctx: SegmentContext,
+  usage: SessionUsage,
+  opts: CostOptions,
+): string | null {
   if (usage.costTotal === null) return null;
-  return `$${usage.costTotal.toFixed(3)}`;
+  const cny = opts.currency === "CNY";
+  const cnv = (usd: number): number => (cny ? usd * opts.rate : usd);
+  const total = `${cny ? "¥" : "$"}${cnv(usage.costTotal).toFixed(3)}`;
+  if (opts.detail !== "cost" && opts.detail !== "both") return total;
+  const c = usage.costDetail ?? ZERO_COST_DETAIL;
+  const part = (label: string, usd: number): string => `${label}${cnv(usd).toFixed(4)}`;
+  return [
+    total,
+    part("↑", c.input),
+    part("↓", c.output),
+    part("R", c.cacheRead),
+    part("W", c.cacheWrite),
+  ].join(" ");
 }
 
 /** session_time 段: `Xs` / `Ym Zs` / `Hh Ym`;无起始时间 → null */

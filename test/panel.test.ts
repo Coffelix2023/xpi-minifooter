@@ -49,6 +49,13 @@ describe("buildPanelHtml", () => {
     expect(html).toContain('id="context_warn"');
     expect(html).toContain('id="context_alert"');
     expect(html).toContain('id="context_danger"');
+    expect(html).toContain('id="cost_currency"');
+    expect(html).toContain('id="usage_detail"');
+    expect(html).toContain('id="usd_to_cny_rate"');
+    // collect() 必须把三者带回 Node 端校验
+    expect(html).toContain("cost_currency: val('cost_currency')");
+    expect(html).toContain("usage_detail: val('usage_detail')");
+    expect(html).toContain("usd_to_cny_rate: num('usd_to_cny_rate')");
     for (const slot of [
       "top_left",
       "top_right",
@@ -149,7 +156,8 @@ describe("buildPanelHtml", () => {
     expect(html).toContain('data-param-description="context_bar"');
     expect(html).toContain('el("lang").addEventListener("change", refreshLanguage)');
     expect(html).toContain("node.textContent = text.panelLabels.parameterReference");
-    expect(html).toContain("输入与输出 token 数量");
+    expect(html).toContain("token 数量;usage_detail 可追加缓存读写");
+    expect(html).toContain("会话费用(货币由 cost_currency 决定");
   });
 
   test("shows in-panel Apply feedback without closing the window", () => {

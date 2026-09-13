@@ -34,6 +34,11 @@ density: comfortable       # compact | comfortable | spacious
 show_icons: true
 show_labels: false
 
+# 费用货币与明细开关。
+cost_currency: CNY           # CNY 按 usd_to_cny_rate 换算 | USD
+usd_to_cny_rate: 7.2         # 静态汇率，仅 CNY 生效，不联网
+usage_detail: off            # off | tokens | cost | both
+
 # 可选编辑器边框内容。none 表示保留 Pi 原生编辑器。
 border_slots:
   top_left: none
@@ -67,13 +72,15 @@ thresholds:
 | `cwd_path` | cwd 的 basename、home 相对路径或完整路径 | cwd 不可用 |
 | `context_bar` | 填充条与百分比 | 窗口未知时显示 `~%` |
 | `context_compact` | 紧凑 context 百分比 | 窗口未知时显示 `~` |
-| `tokens` | 输入/输出 token 总数 | 首次模型响应前 |
-| `cost` | 本次会话 USD 成本 | 成本未知 |
+| `tokens` | 输入/输出 token 总数；`usage_detail` 可追加缓存读写 | 首次模型响应前 |
+| `cost` | 会话成本，货币由 `cost_currency` 决定（默认人民币） | 成本未知 |
 | `session_time` | 会话经过时间 | 起始时间未知 |
 | `native_footer` | 原生 footer 常驻扩展状态（自带运行指示灯） | 无扩展状态 |
 | `mcp_skills` | MCP server 与 skill 数量 | 两者都为零 |
 
 `footer_layout` 只接受以上 13 个 id。行宽不足时先压缩 `cwd_path` 和 `native_footer`，再从尾部逐段省略，不会清空整行。
+
+`usage_detail` 明细标记：`↑` 输入、`↓` 输出、`R` cacheRead、`W` cacheWrite；费用明细复用同一套标记。人民币汇率取自配置的静态值，footer 不会发起网络请求。
 
 ## 开发
 

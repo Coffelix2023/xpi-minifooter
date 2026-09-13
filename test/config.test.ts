@@ -153,6 +153,30 @@ describe("config schema (task 1.2)", () => {
     ).toBeNull();
   });
 
+  test("cost currency and usage detail default to CNY / 7.2 / off", () => {
+    const config = parseConfig("lang: en");
+    expect(config?.cost_currency).toBe("CNY");
+    expect(config?.usd_to_cny_rate).toBe(7.2);
+    expect(config?.usage_detail).toBe("off");
+  });
+
+  test("accepts currency, rate, and usage detail overrides", () => {
+    const config = parseConfig(
+      "cost_currency: USD\nusd_to_cny_rate: 6.9\nusage_detail: both",
+    );
+    expect(config?.cost_currency).toBe("USD");
+    expect(config?.usd_to_cny_rate).toBe(6.9);
+    expect(config?.usage_detail).toBe("both");
+    expect(config && parseConfig(serializeConfig(config))).toEqual(config);
+  });
+
+  test("rejects invalid currency, rate, and usage detail", () => {
+    expect(parseConfig("cost_currency: EUR")).toBeNull();
+    expect(parseConfig("usage_detail: verbose")).toBeNull();
+    expect(parseConfig("usd_to_cny_rate: 0")).toBeNull();
+    expect(parseConfig("usd_to_cny_rate: -1")).toBeNull();
+  });
+
   test("unordered thresholds return null", () => {
     expect(
       parseConfig(

@@ -97,6 +97,12 @@ const footerLayoutRowSchema = Type.Object({
 export const configSchema = Type.Object(
   {
     border_slots: Type.Optional(borderSlotsSchema),
+    cost_currency: Type.Optional(
+      Type.Union([
+        Type.Literal("CNY"),
+        Type.Literal("USD"),
+      ]),
+    ),
     cwd_path_mode: Type.Optional(
       Type.Union([
         Type.Literal("basename"),
@@ -157,6 +163,20 @@ export const configSchema = Type.Object(
         ),
       }),
     ),
+    usage_detail: Type.Optional(
+      Type.Union([
+        Type.Literal("off"),
+        Type.Literal("tokens"),
+        Type.Literal("cost"),
+        Type.Literal("both"),
+      ]),
+    ),
+    usd_to_cny_rate: Type.Optional(
+      Type.Number({
+        maximum: 1000,
+        minimum: 0.01,
+      }),
+    ),
   },
   {
     additionalProperties: false,
@@ -168,6 +188,7 @@ export interface MinifooterConfig {
     "top_left" | "top_right" | "bottom_left" | "bottom_right",
     BorderSlot
   >;
+  cost_currency: "CNY" | "USD";
   cwd_path_mode: "basename" | "relative" | "full";
   density: "compact" | "comfortable" | "spacious";
   editor_padding: "default" | "relaxed";
@@ -201,9 +222,12 @@ export interface MinifooterConfig {
     context_alert: number;
     context_danger: number;
   };
+  usage_detail: "off" | "tokens" | "cost" | "both";
+  usd_to_cny_rate: number;
 }
 
 export const DEFAULT_CONFIG: MinifooterConfig = {
+  cost_currency: "CNY",
   cwd_path_mode: "basename",
   density: "comfortable",
   editor_padding: "default",
@@ -213,6 +237,8 @@ export const DEFAULT_CONFIG: MinifooterConfig = {
   show_icons: true,
   show_labels: false,
   style: "minimalist",
+  usage_detail: "off",
+  usd_to_cny_rate: 7.2,
   border_slots: {
     bottom_left: [
       "none",

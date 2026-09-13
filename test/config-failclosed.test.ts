@@ -41,6 +41,15 @@ describe("fail-closed load (task 1.3)", () => {
     expect(last?.config.lang).toBe("en");
   });
 
+  test("bad exchange rate keeps last valid config", () => {
+    const path = tmpFile("cost_currency: CNY");
+    const last = loadConfig(path);
+    expect(last?.config.cost_currency).toBe("CNY");
+    writeFileSync(path, "usd_to_cny_rate: -3");
+    expect(loadConfig(path)).toBeNull();
+    expect(last?.config.cost_currency).toBe("CNY");
+  });
+
   test("unordered thresholds rejected", () => {
     expect(
       loadConfig(

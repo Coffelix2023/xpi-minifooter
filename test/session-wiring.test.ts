@@ -297,9 +297,15 @@ describe("aggregateUsage", () => {
         message: {
           role: "assistant",
           usage: {
+            cacheRead: 1000,
+            cacheWrite: 200,
             input: 100,
             output: 50,
             cost: {
+              cacheRead: 0.0004,
+              cacheWrite: 0.001,
+              input: 0.004,
+              output: 0.005,
               total: 0.01,
             },
           },
@@ -310,9 +316,15 @@ describe("aggregateUsage", () => {
         message: {
           role: "assistant",
           usage: {
+            cacheRead: 5,
+            cacheWrite: 1,
             input: 10,
             output: 5,
             cost: {
+              cacheRead: 0.0001,
+              cacheWrite: 0.0002,
+              input: 0.0004,
+              output: 0.0005,
               total: 0.001,
             },
           },
@@ -327,6 +339,12 @@ describe("aggregateUsage", () => {
     expect(u.outputTokens).toBe(55);
     expect(u.costTotal).toBeCloseTo(0.011);
     expect(u.hasTurn).toBe(true);
+    expect(u.cacheReadTokens).toBe(1005);
+    expect(u.cacheWriteTokens).toBe(201);
+    expect(u.costDetail?.input).toBeCloseTo(0.0044);
+    expect(u.costDetail?.output).toBeCloseTo(0.0055);
+    expect(u.costDetail?.cacheRead).toBeCloseTo(0.0005);
+    expect(u.costDetail?.cacheWrite).toBeCloseTo(0.0012);
   });
 
   test("no turns → hasTurn false, cost null", () => {
@@ -424,6 +442,50 @@ test("combines two parameters in one border slot", () => {
   );
   expect(result.top_left?.text).toContain("gpt-test");
   expect(result.top_left?.text).toContain("openai");
+});
+
+test("footer tokens/cost follow currency and usage_detail config", () => {
+  const config = fakeConfig({
+    cost_currency: "CNY",
+    usage_detail: "both",
+    usd_to_cny_rate: 7.2,
+  });
+  const rows = buildFooterRows(
+    config,
+    {
+      branchName: null,
+      contextPct: null,
+      cwd: "/tmp/project",
+      elapsedSeconds: null,
+      home: "/tmp",
+      mcpCount: 0,
+      modelNames: {},
+      nativeStatuses: [],
+      skillCount: 0,
+      thinkingLevel: null,
+      usage: {
+        cacheReadTokens: 60_000,
+        cacheWriteTokens: 5_000,
+        costTotal: 0.0037,
+        hasTurn: true,
+        inputTokens: 12_345,
+        outputTokens: 3,
+        costDetail: {
+          cacheRead: 0.0005,
+          cacheWrite: 0.0002,
+          input: 0.001,
+          output: 0.002,
+        },
+      },
+    },
+    200,
+    () => null,
+  );
+  const text = rows
+    .flatMap((row) => row.segments.map((segment) => segment.text))
+    .join(" | ");
+  expect(text).toContain("↑12k ↓3 R60k W5k");
+  expect(text).toContain("¥0.027 ↑0.0072 ↓0.0144 R0.0036 W0.0014");
 });
 
 // ─── inputs/usage 形状兜底 ───────────────────────────────────────────────────

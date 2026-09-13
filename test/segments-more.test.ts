@@ -45,6 +45,13 @@ const THRESHOLDS = {
   context_danger: 80,
   context_warn: 50,
 };
+
+/** 明细关闭的美元选项:旧断言的基线 */
+const USD_OFF = {
+  currency: "USD",
+  detail: "off",
+  rate: 7.2,
+} as const;
 const noopCtx = {
   cwd: "/x",
   home: "/",
@@ -182,6 +189,7 @@ describe("2.7 usage segments", () => {
           inputTokens: 12_345,
           outputTokens: 257_890,
         }),
+        "off",
       ),
     ).toBe("↑12k ↓257k");
     expect(
@@ -191,6 +199,7 @@ describe("2.7 usage segments", () => {
           inputTokens: 1_234_567,
           outputTokens: 1,
         }),
+        "off",
       ),
     ).toBe("↑1M ↓1");
   });
@@ -202,6 +211,7 @@ describe("2.7 usage segments", () => {
         usage({
           hasTurn: false,
         }),
+        "off",
       ),
     ).toBeNull();
   });
@@ -213,6 +223,7 @@ describe("2.7 usage segments", () => {
         usage({
           costTotal: 0.12345,
         }),
+        USD_OFF,
       ),
     ).toBe("$0.123");
     expect(
@@ -221,6 +232,7 @@ describe("2.7 usage segments", () => {
         usage({
           costTotal: 0,
         }),
+        USD_OFF,
       ),
     ).toBe("$0.000");
   });
@@ -232,8 +244,83 @@ describe("2.7 usage segments", () => {
         usage({
           costTotal: null,
         }),
+        USD_OFF,
       ),
     ).toBeNull();
+  });
+
+  test("CNY converts cost by rate, USD stays as-is", () => {
+    expect(
+      resolveCost(
+        noopCtx,
+        usage({
+          costTotal: 0.12345,
+        }),
+        {
+          currency: "CNY",
+          detail: "off",
+          rate: 7.2,
+        },
+      ),
+    ).toBe("¥0.889");
+    expect(
+      resolveCost(
+        noopCtx,
+        usage({
+          costTotal: 1,
+        }),
+        USD_OFF,
+      ),
+    ).toBe("$1.000");
+  });
+
+  test("usage_detail tokens appends cache read/write counts", () => {
+    const u = usage({
+      cacheReadTokens: 60_000,
+      cacheWriteTokens: 5_000,
+      inputTokens: 12_345,
+      outputTokens: 3,
+    });
+    expect(resolveTokens(noopCtx, u, "off")).toBe("↑12k ↓3");
+    expect(resolveTokens(noopCtx, u, "both")).toBe("↑12k ↓3 R60k W5k");
+    // 只开 cost 明细时 tokens 段保持紧凑
+    expect(resolveTokens(noopCtx, u, "cost")).toBe("↑12k ↓3");
+  });
+
+  test("usage_detail cost appends four converted cost parts", () => {
+    expect(
+      resolveCost(
+        noopCtx,
+        usage({
+          costTotal: 0.0037,
+          costDetail: {
+            cacheRead: 0.0005,
+            cacheWrite: 0.0002,
+            input: 0.001,
+            output: 0.002,
+          },
+        }),
+        {
+          currency: "CNY",
+          detail: "cost",
+          rate: 7.2,
+        },
+      ),
+    ).toBe("¥0.027 ↑0.0072 ↓0.0144 R0.0036 W0.0014");
+    // 无分项数据时按 0 输出, 不抛
+    expect(
+      resolveCost(
+        noopCtx,
+        usage({
+          costTotal: 0.5,
+        }),
+        {
+          currency: "USD",
+          detail: "both",
+          rate: 7.2,
+        },
+      ),
+    ).toBe("$0.500 ↑0.0000 ↓0.0000 R0.0000 W0.0000");
   });
 
   test("session_time grade formats", () => {

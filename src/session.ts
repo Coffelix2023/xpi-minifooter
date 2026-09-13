@@ -136,7 +136,15 @@ const GIT_TIMEOUT_MS = 3000;
 export function aggregateUsage(entries: readonly SessionEntry[]): SessionUsage {
   let input = 0;
   let output = 0;
+  let cacheRead = 0;
+  let cacheWrite = 0;
   let cost = 0;
+  const costDetail = {
+    cacheRead: 0,
+    cacheWrite: 0,
+    input: 0,
+    output: 0,
+  };
   let hasTurn = false;
   for (const entry of entries) {
     if (entry.type !== "message") continue;
@@ -145,9 +153,15 @@ export function aggregateUsage(entries: readonly SessionEntry[]): SessionUsage {
         message?: {
           role?: unknown;
           usage?: {
+            cacheRead?: number;
+            cacheWrite?: number;
             input?: number;
             output?: number;
             cost?: {
+              cacheRead?: number;
+              cacheWrite?: number;
+              input?: number;
+              output?: number;
               total?: number;
             };
           };
@@ -160,13 +174,22 @@ export function aggregateUsage(entries: readonly SessionEntry[]): SessionUsage {
     hasTurn = true;
     input += usage.input ?? 0;
     output += usage.output ?? 0;
+    cacheRead += usage.cacheRead ?? 0;
+    cacheWrite += usage.cacheWrite ?? 0;
     cost += usage.cost?.total ?? 0;
+    costDetail.input += usage.cost?.input ?? 0;
+    costDetail.output += usage.cost?.output ?? 0;
+    costDetail.cacheRead += usage.cost?.cacheRead ?? 0;
+    costDetail.cacheWrite += usage.cost?.cacheWrite ?? 0;
   }
   return {
+    cacheReadTokens: cacheRead,
+    cacheWriteTokens: cacheWrite,
+    costDetail,
     costTotal: hasTurn ? cost : null,
+    hasTurn,
     inputTokens: input,
     outputTokens: output,
-    hasTurn,
   };
 }
 
@@ -290,7 +313,11 @@ export function renderSegment(
       text = resolveContextCompact(ctx, inputs.contextPct);
       break;
     case "cost":
-      text = resolveCost(ctx, inputs.usage);
+      text = resolveCost(ctx, inputs.usage, {
+        currency: config.cost_currency,
+        detail: config.usage_detail,
+        rate: config.usd_to_cny_rate,
+      });
       break;
     case "cwd_path":
       text = resolveCwdPath(ctx, config.cwd_path_mode);
@@ -325,7 +352,7 @@ export function renderSegment(
       text = resolveThinkingMode(ctx);
       break;
     case "tokens":
-      text = resolveTokens(ctx, inputs.usage);
+      text = resolveTokens(ctx, inputs.usage, config.usage_detail);
       break;
     default:
       return null;

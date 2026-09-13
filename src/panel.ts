@@ -221,6 +221,8 @@ interface UiText {
     footer_layout: string;
     separator: string;
     items: string;
+    cost_currency: string;
+    usage_detail: string;
   };
   modalReloadHint: string;
   nativeFooterAvailable: string;
@@ -264,6 +266,7 @@ export const UI_TEXT: Record<"zh" | "en", UiText> = {
       alert: "alert",
       bl: "bl",
       br: "br",
+      cost_currency: "cost currency",
       cwd: "cwd",
       danger: "danger",
       density: "density",
@@ -281,6 +284,7 @@ export const UI_TEXT: Record<"zh" | "en", UiText> = {
       thresholds: "thresholds",
       tl: "tl",
       tr: "tr",
+      usage_detail: "usage detail",
       warn: "warn",
     },
     panelLabels: {
@@ -290,6 +294,7 @@ export const UI_TEXT: Record<"zh" | "en", UiText> = {
       context_alert: "thresholds.context_alert (0-100)",
       context_danger: "thresholds.context_danger (0-100)",
       context_warn: "thresholds.context_warn (0-100)",
+      cost_currency: "cost_currency",
       cwd_path_mode: "cwd_path_mode",
       density: "density",
       editor_padding: "editor_padding",
@@ -304,11 +309,13 @@ export const UI_TEXT: Record<"zh" | "en", UiText> = {
       title: "xpi-minifooter",
       top_left: "top_left",
       top_right: "top_right",
+      usage_detail: "usage_detail",
+      usd_to_cny_rate: "usd_to_cny_rate (CNY rate)",
     },
     paramDescriptions: {
       context_bar: "context usage bar and percent",
       context_compact: "compact context percent",
-      cost: "session cost in USD",
+      cost: "session cost (currency by cost_currency, converted by usd_to_cny_rate)",
       cwd_path: "current working directory",
       git_branch: "branch and worktree status",
       mcp_skills: "MCP server and skill counts",
@@ -318,7 +325,7 @@ export const UI_TEXT: Record<"zh" | "en", UiText> = {
       provider: "active model provider",
       session_time: "elapsed session time",
       thinking_mode: "current thinking level",
-      tokens: "input and output token counts",
+      tokens: "token counts; usage_detail adds cache read/write",
     },
     parameterReference: (n) => `${n}-parameter reference`,
   },
@@ -349,6 +356,7 @@ export const UI_TEXT: Record<"zh" | "en", UiText> = {
       alert: "提醒",
       bl: "左下",
       br: "右下",
+      cost_currency: "费用货币",
       cwd: "目录",
       danger: "危险",
       density: "密度",
@@ -366,6 +374,7 @@ export const UI_TEXT: Record<"zh" | "en", UiText> = {
       thresholds: "阈值",
       tl: "左上",
       tr: "右上",
+      usage_detail: "费用明细",
       warn: "警告",
     },
     panelLabels: {
@@ -375,6 +384,7 @@ export const UI_TEXT: Record<"zh" | "en", UiText> = {
       context_alert: "阈值.提醒 (0-100)",
       context_danger: "阈值.危险 (0-100)",
       context_warn: "阈值.警告 (0-100)",
+      cost_currency: "费用货币",
       cwd_path_mode: "目录模式",
       density: "密度",
       editor_padding: "编辑器边距",
@@ -390,11 +400,13 @@ export const UI_TEXT: Record<"zh" | "en", UiText> = {
       title: "xpi-minifooter",
       top_left: "左上",
       top_right: "右上",
+      usage_detail: "费用明细",
+      usd_to_cny_rate: "美元兑人民币汇率",
     },
     paramDescriptions: {
       context_bar: "上下文用量条与百分比",
       context_compact: "紧凑上下文百分比",
-      cost: "会话费用(USD)",
+      cost: "会话费用(货币由 cost_currency 决定, 按 usd_to_cny_rate 换算)",
       cwd_path: "当前工作目录",
       git_branch: "分支与工作树状态",
       mcp_skills: "MCP 服务与技能数量",
@@ -404,7 +416,7 @@ export const UI_TEXT: Record<"zh" | "en", UiText> = {
       provider: "当前模型提供方",
       session_time: "会话已运行时长",
       thinking_mode: "当前思考级别",
-      tokens: "输入与输出 token 数量",
+      tokens: "token 数量;usage_detail 可追加缓存读写",
     },
     parameterReference: (n) => `${n} 个参数参考`,
   },
@@ -446,6 +458,8 @@ export function buildPanelHtml(
     "git_branch_mode: mini | default | full",
     "cwd_path_mode: basename | relative | full",
     "separator: slash | dot | pipe | space",
+    "cost_currency: CNY | USD",
+    "usage_detail: off | tokens | cost | both",
   ].join(" · ");
   const select = (id: string, value: string, options: readonly string[]) =>
     selectHtml(id, value, options);
@@ -594,6 +608,25 @@ export function buildPanelHtml(
         "full",
       ],
     )}</div>
+    <div><label data-i18n="cost_currency">cost_currency</label>${select(
+      "cost_currency",
+      config.cost_currency,
+      [
+        "CNY",
+        "USD",
+      ],
+    )}</div>
+    <div><label data-i18n="usage_detail">usage_detail</label>${select(
+      "usage_detail",
+      config.usage_detail,
+      [
+        "off",
+        "tokens",
+        "cost",
+        "both",
+      ],
+    )}</div>
+    <div><label data-i18n="usd_to_cny_rate">usd_to_cny_rate</label><input id="usd_to_cny_rate" type="number" min="0.01" max="1000" step="0.01" value="${config.usd_to_cny_rate}"></div>
     <div><label data-i18n="context_warn">thresholds.context_warn (0-100)</label><input id="context_warn" type="number" min="0" max="100" value="${th.context_warn}"></div>
     <div><label data-i18n="context_alert">thresholds.context_alert (0-100)</label><input id="context_alert" type="number" min="0" max="100" value="${th.context_alert}"></div>
     <div><label data-i18n="context_danger">thresholds.context_danger (0-100)</label><input id="context_danger" type="number" min="0" max="100" value="${th.context_danger}"></div>
@@ -967,6 +1000,7 @@ export function buildPanelHtml(
   function collect() {
     return {
       lang: val('lang'), style: val('style'), density: val('density'), editor_padding: val('editor_padding'),
+      cost_currency: val('cost_currency'), usage_detail: val('usage_detail'), usd_to_cny_rate: num('usd_to_cny_rate'),
       cwd_path_mode: val('cwd_path_mode'), git_branch_mode: val('git_branch_mode'),
       show_icons: checked('show_icons'), show_labels: checked('show_labels'),
       thresholds: { context_warn: num('context_warn'), context_alert: num('context_alert'), context_danger: num('context_danger') },
