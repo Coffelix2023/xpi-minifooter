@@ -201,13 +201,19 @@ describe("buildPanelHtml", () => {
   test("renders native footer status and layout editor", () => {
     const html = buildPanelHtml(enConfig(), {
       nativeStatuses: [
-        "● plugin:on",
+        {
+          key: "plugin",
+          text: "● plugin:on",
+        },
       ],
     });
-    expect(html).not.toContain('id="native_footer"');
     expect(html).toContain('id="nativeLayoutRows"');
-    expect(html).toContain("native footer status: available: ● plugin:on");
-    expect(html).toContain('var NATIVE_STATUSES = ["● plugin:on"]');
+    expect(html).toContain('id="nativeStatusList"');
+    expect(html).toContain('id="nativeOverflow"');
+    expect(html).toContain(
+      'var NATIVE_STATUSES = [{"key":"plugin","text":"● plugin:on"}]',
+    );
+    expect(html).toContain("var NATIVE_HIDDEN = []");
   });
   test("escapes interpolated config values", () => {
     const html = buildPanelHtml(DEFAULT_CONFIG);
@@ -428,6 +434,54 @@ describe("panel save boundary", () => {
     expect(result).toBe(true);
     expect(applied[0]).toMatchObject({
       density: "compact",
+    });
+  });
+
+  test("persists native footer capacity through the save boundary", () => {
+    const applied: MinifooterConfig[] = [];
+    const saved: MinifooterConfig[] = [];
+    const runtime = {
+      applyConfig: (config: MinifooterConfig) => applied.push(config),
+    };
+    const config = structuredClone(DEFAULT_CONFIG);
+    config.footer_layout = [];
+    config.native_footer_layout = [
+      {
+        separator: "space",
+        items: [
+          {
+            id: "native_footer",
+            max: 5,
+          },
+        ],
+      },
+    ];
+    config.native_status = {
+      hidden: [
+        "rtk",
+      ],
+    };
+    const result = applyPanelConfig(
+      runtime,
+      {
+        config,
+        outcome: "saved",
+      },
+      () => {},
+      {
+        path: "/tmp/minifooter.yml",
+        save: (_path, value) => saved.push(value),
+      },
+    );
+    expect(result).toBe(true);
+    expect(applied[0]?.native_footer_layout[0]?.items[0]).toEqual({
+      id: "native_footer",
+      max: 5,
+    });
+    expect(saved[0]?.native_status).toEqual({
+      hidden: [
+        "rtk",
+      ],
     });
   });
 
@@ -898,15 +952,18 @@ describe("openGlimpsePanel", () => {
     const html = buildPanelHtml(enConfig(), {
       liveApply: true,
       nativeStatuses: [
-        "● test:ok",
+        {
+          key: "test",
+          text: "● test:ok",
+        },
       ],
     });
     expect(html).toContain("function refreshLanguage()");
     expect(html).toContain('el("lang").addEventListener("change", refreshLanguage)');
-    expect(html).toContain('var nfs = el("nativeFooterStatus");');
-    expect(html).toContain("text.nativeFooterAvailable");
+    expect(html).toContain("TXT.nativeStatusMax = text.nativeStatusMax;");
     expect(html).toContain("renderRows();");
     expect(html).toContain("renderPreview();");
+    expect(html).toContain("renderNativeStatusList();");
   });
 
   test("Cancel closes panel without submitting saved payload", async () => {
@@ -929,5 +986,430 @@ describe("openGlimpsePanel", () => {
     expect(result).toEqual({
       outcome: "cancelled",
     });
+  });
+});
+
+// ─── native_status panel wiring (task 4.1-4.5) ──────────────────────────────
+
+describe("native_status panel wiring (task 4.1-4.5)", () => {
+  function htmlWithNativeStatuses(
+    statuses: {
+      key: string;
+      text: string;
+    }[],
+    overrides: Partial<MinifooterConfig> = {},
+  ): string {
+    return buildPanelHtml(
+      {
+        ...structuredClone(DEFAULT_CONFIG),
+        ...overrides,
+      },
+      {
+        nativeStatuses: statuses,
+      },
+    );
+  }
+
+  test("injects native status entries with keys", () => {
+    const html = htmlWithNativeStatuses([
+      {
+        key: "caveman",
+        text: "○ caveman idle",
+      },
+      {
+        key: "rtk",
+        text: "● rtk:on",
+      },
+    ]);
+    expect(html).toContain(
+      'var NATIVE_STATUSES = [{"key":"caveman","text":"○ caveman idle"},{"key":"rtk","text":"● rtk:on"}]',
+    );
+  });
+
+  test("injects hidden keys from config", () => {
+    const html = htmlWithNativeStatuses(
+      [
+        {
+          key: "rtk",
+          text: "● rtk:on",
+        },
+      ],
+      {
+        native_status: {
+          hidden: [
+            "rtk",
+          ],
+        },
+      },
+    );
+    expect(html).toContain('var NATIVE_HIDDEN = ["rtk"]');
+  });
+
+  test("checkbox toggles write back into native_status.hidden", () => {
+    const html = htmlWithNativeStatuses([
+      {
+        key: "rtk",
+        text: "● rtk:on",
+      },
+    ]);
+    expect(html).toContain("data-native-key=");
+    expect(html).toContain("native_status: { hidden: (NATIVE_HIDDEN || []).slice() }");
+    assertPanelScriptIsValid(html);
+  });
+
+  test("keys present in hidden but not observed are listed as not running", () => {
+    const html = htmlWithNativeStatuses([], {
+      native_status: {
+        hidden: [
+          "rtk",
+        ],
+      },
+    });
+    expect(html).toContain('var NATIVE_HIDDEN = ["rtk"]');
+    expect(html).toContain("nativeStatusOffline");
+    expect(html).toContain("rows.push({ key: key, label: text.nativeStatusOffline })");
+  });
+
+  test("native footer items expose a bounded capacity input", () => {
+    const html = htmlWithNativeStatuses([]);
+    expect(html).toContain("data-native-max=");
+    expect(html).toContain('min="1" max="5"');
+    expect(html).toContain("if (obj.id !== 'native_footer') delete obj.max;");
+  });
+
+  test("preview reports statuses the capacity cannot display", () => {
+    const html = htmlWithNativeStatuses([
+      {
+        key: "a",
+        text: "a",
+      },
+      {
+        key: "b",
+        text: "b",
+      },
+      {
+        key: "c",
+        text: "c",
+      },
+      {
+        key: "d",
+        text: "d",
+      },
+      {
+        key: "e",
+        text: "e",
+      },
+    ]);
+    expect(html).toContain("renderNativeStatusNotices");
+    expect(html).toContain("nativeStatusOverflow");
+    expect(html).toContain("pool.slice(cap).join(', ')");
+    assertPanelScriptIsValid(html);
+  });
+
+  test("border slots holding native_footer report the no-capacity hint", () => {
+    const html = htmlWithNativeStatuses([]);
+    expect(html).toContain("nativeStatusBorderHint");
+    expect(html).toContain("nativeBorderOwns");
+    assertPanelScriptIsValid(html);
+  });
+
+  test("capacity round-trips through the layout reader", () => {
+    const html = htmlWithNativeStatuses([]);
+    expect(html).toContain("native_footer_layout: readLayout(nativeLayoutRows)");
+    expect(html).toContain("function toItemObject(item)");
+    expect(html).toContain("if (item.max !== undefined) out.max = item.max;");
+  });
+});
+
+// ─── panel script behaviour (task 4.1-4.4) ──────────────────────────────────
+
+interface PanelNode {
+  addEventListener(type: string, handler: () => void): void;
+  checked: boolean;
+  classList: {
+    add(): void;
+    remove(): void;
+    toggle(): void;
+  };
+  disabled: boolean;
+  focus(): void;
+  getAttribute(name: string): string | null;
+  id: string;
+  innerHTML: string;
+  querySelector(selector: string): PanelNode | null;
+  querySelectorAll(selector: string): PanelNode[];
+  setAttribute(name: string, value: string): void;
+  style: Record<string, string>;
+  textContent: string;
+  value: string;
+}
+
+/**
+ * 在最小 DOM stub 上跑面板内联脚本, 以便对真实浏览器逻辑(勾选/容量/collect)
+ * 做行为断言, 而不是只断言生成的标记。
+ */
+function runPanelScript(
+  html: string,
+  options: {
+    borderSlots?: Record<string, string>;
+    hiddenKeys?: string[];
+    lang: string;
+    nativeStatusKeys: string[];
+  },
+) {
+  const handlers = new Map<string, () => void>();
+  const nodes = new Map<string, PanelNode>();
+  const sent: {
+    action: string;
+    config: Record<string, unknown>;
+  }[] = [];
+
+  function makeNode(id: string): PanelNode {
+    const node: PanelNode = {
+      checked: false,
+      disabled: false,
+      addEventListener(type, handler) {
+        handlers.set(`${id}:${type}`, handler);
+      },
+      classList: {
+        add() {},
+        remove() {},
+        toggle() {},
+      },
+      focus() {},
+      getAttribute: () => null,
+      id,
+      innerHTML: "",
+      style: {},
+      textContent: "",
+      value: "",
+      querySelector: () => null,
+      querySelectorAll: () => [],
+      setAttribute: () => {},
+    };
+    nodes.set(id, node);
+    return node;
+  }
+
+  const hiddenKeys = options.hiddenKeys ?? [];
+  const nativeKeyNodes = options.nativeStatusKeys.map((key) => {
+    const node = makeNode(`native-key:${key}`);
+    node.getAttribute = () => key;
+    // 模拟真实标记: 未隐藏的 key 渲染为已勾选
+    node.checked = !hiddenKeys.includes(key);
+    return node;
+  });
+  const listNode = makeNode("nativeStatusList");
+  listNode.querySelectorAll = (selector: string) =>
+    selector === "[data-native-key]" ? nativeKeyNodes : [];
+
+  const langNode = makeNode("lang");
+  langNode.value = options.lang;
+
+  // 模拟边框槽 select 的当前值
+  for (const [slot, value] of Object.entries(options.borderSlots ?? {})) {
+    makeNode(`${slot}_1`).value = value;
+  }
+  const documentStub = {
+    addEventListener() {},
+    documentElement: {
+      style: {
+        setProperty() {},
+      },
+    },
+    getElementById: (id: string) => {
+      if (id === "nativeStatusList") return listNode;
+      return nodes.get(id) ?? makeNode(id);
+    },
+    querySelectorAll: () => [],
+  };
+
+  const script = html.match(PANEL_SCRIPT_PATTERN)?.[1];
+  if (script === undefined) throw new Error("panel script not found");
+  new Script(script).runInNewContext({
+    document: documentStub,
+    window: {
+      addEventListener() {},
+      glimpse: {
+        close() {},
+        send(payload: { action: string; config: Record<string, unknown> }) {
+          sent.push(payload);
+        },
+      },
+    },
+  });
+
+  return {
+    handlers,
+    nativeKeyNodes,
+    nodes,
+    sent,
+  };
+}
+
+describe("panel script behaviour (task 4.1-4.4)", () => {
+  const baseConfig = () => structuredClone(DEFAULT_CONFIG);
+
+  test("clearing a status row writes its key into native_status.hidden", () => {
+    const html = buildPanelHtml(baseConfig(), {
+      nativeStatuses: [
+        {
+          key: "rtk",
+          text: "● rtk:on",
+        },
+        {
+          key: "caveman",
+          text: "○ caveman idle",
+        },
+      ],
+    });
+    const { handlers, nativeKeyNodes, sent } = runPanelScript(html, {
+      lang: "en",
+      nativeStatusKeys: [
+        "rtk",
+        "caveman",
+      ],
+    });
+
+    const rtk = nativeKeyNodes[0];
+    expect(rtk?.checked).toBe(true);
+    if (rtk === undefined) throw new Error("rtk node missing");
+    rtk.checked = false;
+    handlers.get("native-key:rtk:change")?.();
+
+    handlers.get("save:click")?.();
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.config.native_status).toEqual({
+      hidden: [
+        "rtk",
+      ],
+    });
+  });
+
+  test("hidden keys survive a save when the extension is not running", () => {
+    const config = baseConfig();
+    config.native_status = {
+      hidden: [
+        "rtk",
+      ],
+    };
+    const html = buildPanelHtml(config, {
+      nativeStatuses: [],
+    });
+    const { handlers, sent } = runPanelScript(html, {
+      lang: "en",
+      nativeStatusKeys: [],
+    });
+    handlers.get("save:click")?.();
+    expect(sent[0]?.config.native_status).toEqual({
+      hidden: [
+        "rtk",
+      ],
+    });
+  });
+
+  test("re-selecting a hidden status removes it from native_status.hidden", () => {
+    const config = baseConfig();
+    config.native_status = {
+      hidden: [
+        "rtk",
+      ],
+    };
+    const html = buildPanelHtml(config, {
+      nativeStatuses: [
+        {
+          key: "rtk",
+          text: "● rtk:on",
+        },
+      ],
+    });
+    const { handlers, nativeKeyNodes, sent } = runPanelScript(html, {
+      lang: "en",
+      hiddenKeys: [
+        "rtk",
+      ],
+      nativeStatusKeys: [
+        "rtk",
+      ],
+    });
+
+    const rtk = nativeKeyNodes[0];
+    if (rtk === undefined) throw new Error("rtk node missing");
+    expect(rtk.checked).toBe(false);
+    rtk.checked = true;
+    handlers.get("native-key:rtk:change")?.();
+
+    handlers.get("save:click")?.();
+    expect(sent[0]?.config.native_status).toEqual({
+      hidden: [],
+    });
+  });
+
+  test("overflow notice lists the statuses capacity cannot display", () => {
+    const config = baseConfig();
+    config.footer_layout = [];
+    config.native_footer_layout = [
+      {
+        separator: "space",
+        items: [
+          {
+            id: "native_footer",
+            max: 3,
+          },
+        ],
+      },
+    ];
+    const html = buildPanelHtml(config, {
+      nativeStatuses: [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+      ].map((key) => ({
+        key,
+        text: key,
+      })),
+    });
+    const { nodes } = runPanelScript(html, {
+      lang: "en",
+      nativeStatusKeys: [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+      ],
+    });
+    expect(nodes.get("nativeOverflow")?.textContent).toContain("d, e");
+  });
+
+  test("border hint appears when a slot holds native_footer", () => {
+    const config = baseConfig();
+    config.border_slots = {
+      ...structuredClone(DEFAULT_CONFIG.border_slots),
+      top_right: [
+        "native_footer",
+      ],
+    };
+    const html = buildPanelHtml(config, {
+      nativeStatuses: [
+        {
+          key: "rtk",
+          text: "● rtk:on",
+        },
+      ],
+    });
+    const { nodes } = runPanelScript(html, {
+      lang: "en",
+      borderSlots: {
+        top_right: "native_footer",
+      },
+      nativeStatusKeys: [
+        "rtk",
+      ],
+    });
+    expect(nodes.get("nativeBorderHint")?.textContent).toContain("border slot");
+    expect(nodes.get("nativeOverflow")?.textContent).toBe("");
   });
 });

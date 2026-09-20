@@ -207,3 +207,61 @@ describe("config schema (task 1.2)", () => {
     expect(config?.footer_layout[0]?.separator).toBe("slash");
   });
 });
+
+describe("native status config (task 1.1-1.4)", () => {
+  test("accepts native footer capacity within bounds", () => {
+    const config = parseConfig(
+      "native_footer_layout:\n  - items:\n      - { id: native_footer, max: 2 }",
+    );
+    expect(config?.native_footer_layout[0]?.items).toEqual([
+      {
+        id: "native_footer",
+        max: 2,
+      },
+    ]);
+    expect(config && parseConfig(serializeConfig(config))).toEqual(config);
+  });
+
+  test("rejects native footer capacity outside bounds", () => {
+    expect(
+      parseConfig(
+        "native_footer_layout:\n  - items:\n      - { id: native_footer, max: 0 }",
+      ),
+    ).toBeNull();
+    expect(
+      parseConfig(
+        "native_footer_layout:\n  - items:\n      - { id: native_footer, max: 9 }",
+      ),
+    ).toBeNull();
+  });
+
+  test("rejects capacity on a non-native parameter", () => {
+    expect(
+      parseConfig("footer_layout:\n  - items:\n      - { id: git_branch, max: 2 }"),
+    ).toBeNull();
+  });
+
+  test("native_status defaults to no hidden keys", () => {
+    expect(parseConfig("lang: en")?.native_status).toEqual({
+      hidden: [],
+    });
+    expect(DEFAULT_CONFIG.native_status).toEqual({
+      hidden: [],
+    });
+  });
+
+  test("hidden accepts arbitrary extension keys", () => {
+    const config = parseConfig(
+      "native_status:\n  hidden: [rtk, some-extension-not-installed]",
+    );
+    expect(config?.native_status.hidden).toEqual([
+      "rtk",
+      "some-extension-not-installed",
+    ]);
+    expect(config && parseConfig(serializeConfig(config))).toEqual(config);
+  });
+
+  test("rejects empty hidden key", () => {
+    expect(parseConfig("native_status:\n  hidden: ['']")).toBeNull();
+  });
+});

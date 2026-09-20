@@ -79,12 +79,15 @@ describe("buildModalLines (TUI fallback)", () => {
         contextTokens: 12_000,
         contextWindow: 1_000_000,
         nativeStatuses: [
-          "● plugin:on",
+          {
+            key: "plugin",
+            text: "● plugin:on",
+          },
         ],
       },
     ).join("\n");
     expect(text).toContain("左上 git_branch, model_name");
-    expect(text).toContain("native footer: ● plugin:on");
+    expect(text).toContain("native_status: plugin");
     expect(text).toContain("context tokens: 12k/1M");
   });
 });

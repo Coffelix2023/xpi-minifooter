@@ -15,6 +15,7 @@ import {
   serializeConfig,
   slotItems,
 } from "./config.js";
+import type { NativeStatusEntry } from "./segments.js";
 
 const ERROR_LINE_PATTERN = /line (\d+)/i;
 
@@ -225,8 +226,12 @@ interface UiText {
     usage_detail: string;
   };
   modalReloadHint: string;
-  nativeFooterAvailable: string;
-  nativeFooterEmpty: string;
+  nativeStatusBorderHint: string;
+  nativeStatusEmpty: string;
+  nativeStatusMax: string;
+  nativeStatusOffline: string;
+  nativeStatusOverflow: string;
+  nativeStatusTitle: string;
   occupancyEmpty: string;
   occupancyUsed: string;
   panelLabels: Record<string, string>;
@@ -251,8 +256,13 @@ export const UI_TEXT: Record<"zh" | "en", UiText> = {
     modalCancel: "[Esc/Enter/q] cancel",
     modalEditHint: "Edit ~/.pi/agent/minifooter.yml to change values.",
     modalReloadHint: "Changes hot-reload on next render.",
-    nativeFooterAvailable: "native footer status: available",
-    nativeFooterEmpty: "native footer status: none",
+    nativeStatusBorderHint:
+      "native_footer in a border slot shows every status and ignores capacity.",
+    nativeStatusEmpty: "no extension statuses observed",
+    nativeStatusMax: "max",
+    nativeStatusOffline: "not running",
+    nativeStatusOverflow: "not displayed (capacity): __KEYS__",
+    nativeStatusTitle: "native_status",
     occupancyEmpty: "No parameters embedded in border.",
     occupancyUsed: "Embedded in border: __USED__. Footer duplicates hidden.",
     preview: "preview",
@@ -340,8 +350,14 @@ export const UI_TEXT: Record<"zh" | "en", UiText> = {
     modalEditHint: "编辑 ~/.pi/agent/minifooter.yml 以修改配置。",
     // biome-ignore lint/security/noSecrets: UI 文案, 非密钥(中文高熵误报)
     modalReloadHint: "修改将在下次渲染时热加载。",
-    nativeFooterAvailable: "原生 footer 状态：可用",
-    nativeFooterEmpty: "原生 footer 状态：无",
+    // biome-ignore lint/security/noSecrets: UI 文案, 非密钥(中文高熵误报)
+    nativeStatusBorderHint: "native_footer 在边框槽中显示全部状态，不受容量上限限制。",
+    nativeStatusEmpty: "未观测到扩展状态",
+    nativeStatusMax: "上限",
+    nativeStatusOffline: "未运行",
+    // biome-ignore lint/security/noSecrets: UI 文案, 非密钥(中文高熵误报)
+    nativeStatusOverflow: "容量不足未显示：__KEYS__",
+    nativeStatusTitle: "原生状态",
     occupancyEmpty: "边框未嵌入参数。",
     occupancyUsed: "已嵌入边框: __USED__。footer 中的重复项将隐藏。",
 
@@ -391,8 +407,6 @@ export const UI_TEXT: Record<"zh" | "en", UiText> = {
       footer_layout: "页脚布局",
       git_branch_mode: "分支模式",
       lang: "语言",
-      nativeFooterAvailable: "原生 footer 状态：可用",
-      nativeFooterEmpty: "原生 footer 状态：无",
       parameterReference: `${PARAMETER_IDS.length} 个参数参考`,
       show_icons: "显示图标",
       show_labels: "显示标签",
@@ -427,7 +441,7 @@ export function buildPanelHtml(
   config: MinifooterConfig,
   options: {
     liveApply?: boolean;
-    nativeStatuses?: readonly string[];
+    nativeStatuses?: readonly NativeStatusEntry[];
   } = {},
 ) {
   const liveApply = options.liveApply === true;
@@ -635,7 +649,12 @@ export function buildPanelHtml(
       <label><input id="show_labels" type="checkbox" ${config.show_labels ? "checked" : ""}> <span data-i18n="show_labels">show_labels</span></label>
     </div>
   </div>
-  <div id="nativeFooterStatus" class="legal">${e((options.nativeStatuses ?? []).length > 0 ? `${t.nativeFooterAvailable}: ${(options.nativeStatuses ?? []).join(" ")}` : t.nativeFooterEmpty)}</div>
+  <div class="section">
+    <div class="title" data-i18n="nativeStatusTitle">${t.nativeStatusTitle}</div>
+    <div id="nativeStatusList"></div>
+    <div id="nativeOverflow" class="legal"></div>
+    <div id="nativeBorderHint" class="legal"></div>
+  </div>
   <div class="section">
     <div class="title" data-i18n="border_slots">border_slots</div>
     <div class="grid">
@@ -696,8 +715,10 @@ export function buildPanelHtml(
   var nativeLayoutRows = ${JSON.stringify(config.native_footer_layout)};
   var PANEL_TEXT = ${panelText};
   var NATIVE_STATUSES = ${JSON.stringify(options.nativeStatuses ?? [])};
+  var NATIVE_HIDDEN = ${JSON.stringify(config.native_status.hidden)};
   var TXT = ${JSON.stringify({
     addItem: t.addItem,
+    nativeStatusMax: t.nativeStatusMax,
     occupancyEmpty: t.occupancyEmpty,
     occupancyUsed: t.occupancyUsed,
     sourcePreviewPartial: t.sourcePreviewPartial,
@@ -734,16 +755,92 @@ export function buildPanelHtml(
       if (id && text.paramDescriptions[id]) node.textContent = text.paramDescriptions[id];
     });
     TXT.addItem = text.addItem;
+    TXT.nativeStatusMax = text.nativeStatusMax;
     TXT.occupancyEmpty = text.occupancyEmpty;
     TXT.occupancyUsed = text.occupancyUsed;
     TXT.sourcePreviewPartial = text.sourcePreviewPartial;
-    var nfs = el("nativeFooterStatus");
-    if (nfs) {
-      nfs.textContent = NATIVE_STATUSES.length > 0 ? (text.nativeFooterAvailable + ": " + NATIVE_STATUSES.join(" ")) : text.nativeFooterEmpty;
-    }
     renderRows();
     renderPreview();
+    renderNativeStatusList();
     if (activeTab === "sourceTab") renderSourcePreview();
+  }
+  function escHtml(value) {
+    return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function nativeHiddenSet() {
+    var set = {};
+    (NATIVE_HIDDEN || []).forEach(function (key) { set[key] = true; });
+    return set;
+  }
+  function nativePoolKeys() {
+    var hidden = nativeHiddenSet();
+    return NATIVE_STATUSES.filter(function (entry) { return !hidden[entry.key]; }).map(function (entry) { return entry.key; });
+  }
+  function nativeBorderOwns() {
+    var slots = slotValues();
+    return Object.keys(slots).some(function (key) {
+      return (slots[key] || []).some(function (item) {
+        return itemId(item) === 'native_footer';
+      });
+    });
+  }
+  function nativeCapacity() {
+    var total = 0;
+    var unlimited = false;
+    (nativeLayoutRows || []).forEach(function (row) {
+      (row.items || []).forEach(function (item) {
+        if (itemId(item) !== 'native_footer') return;
+        var max = typeof item === 'object' && item && item.max !== undefined ? Number(item.max) : undefined;
+        if (max === undefined) unlimited = true;
+        else if (max > 0) total += max;
+      });
+    });
+    return unlimited ? Infinity : total;
+  }
+  function renderNativeStatusList() {
+    var wrap = el('nativeStatusList');
+    if (!wrap) return;
+    var text = PANEL_TEXT[val("lang")];
+    var hidden = nativeHiddenSet();
+    var rows = NATIVE_STATUSES.map(function (entry) { return { key: entry.key, label: entry.text }; });
+    var observed = {};
+    NATIVE_STATUSES.forEach(function (entry) { observed[entry.key] = true; });
+    (NATIVE_HIDDEN || []).forEach(function (key) {
+      if (!observed[key]) rows.push({ key: key, label: text.nativeStatusOffline });
+    });
+    if (rows.length === 0) {
+      wrap.innerHTML = '<div class="legal">' + escHtml(text.nativeStatusEmpty) + '</div>';
+      return;
+    }
+    wrap.innerHTML = rows.map(function (row) {
+      return '<div class="row-item">' +
+        '<label class="item-icon"><input type="checkbox" data-native-key="' + escHtml(row.key) + '"' + (hidden[row.key] ? '' : ' checked') + '> ' + escHtml(row.key) + '</label>' +
+        '<span class="legal">' + escHtml(row.label) + '</span>' +
+        '</div>';
+    }).join('');
+    Array.prototype.forEach.call(wrap.querySelectorAll('[data-native-key]'), function (node) {
+      node.addEventListener('change', function () {
+        var key = node.getAttribute('data-native-key');
+        var next = nativeHiddenSet();
+        if (node.checked) delete next[key];
+        else next[key] = true;
+        NATIVE_HIDDEN = Object.keys(next);
+        renderPreview();
+      });
+    });
+  }
+  function renderNativeStatusNotices() {
+    var text = PANEL_TEXT[val("lang")];
+    var hint = el('nativeBorderHint');
+    var overflow = el('nativeOverflow');
+    var owns = nativeBorderOwns();
+    if (hint) hint.textContent = owns ? text.nativeStatusBorderHint : '';
+    if (!overflow) return;
+    if (owns) { overflow.textContent = ''; return; }
+    var pool = nativePoolKeys();
+    var cap = nativeCapacity();
+    if (cap === Infinity || pool.length <= cap) { overflow.textContent = ''; return; }
+    overflow.textContent = text.nativeStatusOverflow.replace('__KEYS__', pool.slice(cap).join(', '));
   }
   function el(id) { return document.getElementById(id); }
   function val(id) { return el(id).value; }
@@ -764,6 +861,17 @@ export function buildPanelHtml(
     var opts = options.map(function (o) { return '<option value="' + o + '"' + (o === value ? ' selected' : '') + '>' + o + '</option>'; }).join('');
     return '<select id="' + id + '">' + opts + '</select>';
   }
+  function toItemObject(item) {
+    if (typeof item === 'string') return { id: item };
+    var out = { id: item.id };
+    if (item.showIcon !== undefined) out.showIcon = item.showIcon;
+    if (item.max !== undefined) out.max = item.max;
+    return out;
+  }
+  function compactItem(obj) {
+    if (obj.id !== 'native_footer' && obj.showIcon === undefined && obj.max === undefined) return obj.id;
+    return obj;
+  }
   function renderLayoutRows(rows, wrapId, native) {
     var wrap = el(wrapId);
     if (!wrap) return;
@@ -772,8 +880,13 @@ export function buildPanelHtml(
       var items = row.items.map(function (item, ii) {
         var id = typeof item === 'string' ? item : item.id;
         var showIcon = typeof item === 'string' || item.showIcon !== false;
+        var max = typeof item === 'object' && item ? item.max : undefined;
+        var cap = id === 'native_footer'
+          ? '<label class="item-icon">' + TXT.nativeStatusMax + ' <input type="number" min="1" max="5" data-native-max="' + ri + '-' + ii + '" value="' + (max === undefined ? '' : max) + '"></label>'
+          : '';
         return '<div class="row-item">' +
           '<select id="' + (native ? 'native-' : '') + 'row-item-' + ri + '-' + ii + '">' + PARAMETER_IDS.map(function (option) { return '<option value="' + option + '"' + (option === id ? ' selected' : '') + '>' + option + '</option>'; }).join('') + '</select>' +
+          cap +
           '<label class="item-icon"><input type="checkbox" data-show-icon="' + ri + '-' + ii + '"' + (showIcon ? ' checked' : '') + '> showIcon</label>' +
           '<button type="button" class="secondary item-del" data-ri="' + ri + '" data-ii="' + ii + '">×</button>' +
         '</div>';
@@ -801,18 +914,31 @@ export function buildPanelHtml(
       rowEl.querySelector('[data-add-item]').addEventListener('click', function () { addItem(rows, ri, wrapId, native); });
       rowEl.querySelectorAll('.row-item').forEach(function (itemEl, ii) {
         itemEl.querySelector('select').addEventListener('change', function () {
-          var item = rows[ri].items[ii];
-          rows[ri].items[ii] = typeof item === 'string' ? itemEl.querySelector('select').value : { id: itemEl.querySelector('select').value, showIcon: item.showIcon };
+          var obj = toItemObject(rows[ri].items[ii]);
+          obj.id = itemEl.querySelector('select').value;
+          if (obj.id !== 'native_footer') delete obj.max;
+          rows[ri].items[ii] = compactItem(obj);
+          renderLayoutRows(rows, wrapId, native);
           renderPreview();
         });
         itemEl.querySelector('[data-show-icon]').addEventListener('change', function () {
-          var item = rows[ri].items[ii];
-          rows[ri].items[ii] = { id: typeof item === 'string' ? item : item.id, showIcon: itemEl.querySelector('[data-show-icon]').checked };
+          var obj = toItemObject(rows[ri].items[ii]);
+          obj.showIcon = itemEl.querySelector('[data-show-icon]').checked;
+          rows[ri].items[ii] = compactItem(obj);
           renderPreview();
         });
         itemEl.querySelector('.item-del').addEventListener('click', function () {
           rows[ri].items.splice(ii, 1);
           renderLayoutRows(rows, wrapId, native);
+          renderPreview();
+        });
+        var maxInput = itemEl.querySelector('[data-native-max]');
+        if (maxInput) maxInput.addEventListener('input', function () {
+          var obj = toItemObject(rows[ri].items[ii]);
+          var raw = maxInput.value.trim();
+          if (raw === '') delete obj.max;
+          else obj.max = Number(raw);
+          rows[ri].items[ii] = compactItem(obj);
           renderPreview();
         });
       });
@@ -955,6 +1081,7 @@ export function buildPanelHtml(
     el('preview').textContent = previewText(rows, occupied());
     var used = Object.keys(occupied());
     el('occupancy').textContent = used.length ? TXT.occupancyUsed.replace('__USED__', used.join(', ')) : TXT.occupancyEmpty;
+    renderNativeStatusNotices();
   }
   function renderSourcePreview() {
     var parsed = parseSource(val("yaml_source"));
@@ -1007,6 +1134,7 @@ export function buildPanelHtml(
       border_slots: slotValues(),
       footer_layout: readLayout(),
       native_footer_layout: readLayout(nativeLayoutRows),
+      native_status: { hidden: (NATIVE_HIDDEN || []).slice() },
     };
   }
   el("cancel").addEventListener("click", closePanel);
@@ -1016,6 +1144,7 @@ export function buildPanelHtml(
   refreshFontSize();
   renderRows();
   renderPreview();
+  renderNativeStatusList();
   renderSourcePreview();
 })();
 </script>
@@ -1024,7 +1153,7 @@ export function buildPanelHtml(
 }
 export interface PanelDeps {
   load?: GlimpseLoader;
-  nativeStatuses?: readonly string[];
+  nativeStatuses?: readonly NativeStatusEntry[];
   onApply?: (
     result: SavedPanelResult,
     respond?: (message: { ok: boolean; message: string }) => void,

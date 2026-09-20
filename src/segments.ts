@@ -11,7 +11,7 @@
 import { join, basename as pathBasename } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
-import { truncateToWidth } from "@earendil-works/pi-tui";
+import { stripTerminalSequences, truncateToWidth } from "@earendil-works/pi-tui";
 import { PARAMETER_IDS, type ParameterId } from "./config.js";
 
 /** Pi 的 7 级 thinking level(pi-agent-core `ThinkingLevel` 的本地镜像, 该包不可直接 import) */
@@ -544,13 +544,29 @@ export function decorateSegment(
 
 // ─── 2.8 native_footer / mcp_skills ─────────────────────────────────────────
 
-/** native_footer 段: 原生 footer 常驻状态(各扩展 setStatus 文本, 自带指示灯);空 → null */
+/** 一条原生 footer 状态: 扩展 key + 清洗后的显示文本 */
+export interface NativeStatusEntry {
+  key: string;
+  text: string;
+}
+
+/**
+ * native_footer 段: 原生 footer 常驻状态(各扩展 setStatus)。
+ * 保留 key, 剥离终端控制序列(ANSI/OSC/APC), 折叠空白, 按 key 升序;
+ * 清洗后为空 → 丢弃。空输入 → []。
+ */
 export function resolveNativeFooter(
-  ctx: SegmentContext,
-  statuses: readonly string[],
-): string | null {
-  if (statuses.length === 0) return null;
-  return truncateToWidth(statuses.join(" "), ctx.width);
+  statuses: ReadonlyMap<string, string>,
+): NativeStatusEntry[] {
+  return [
+    ...statuses.entries(),
+  ]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, raw]) => ({
+      key,
+      text: stripTerminalSequences(raw).replace(/\s+/g, " ").trim(),
+    }))
+    .filter((entry) => entry.text !== "");
 }
 
 /** 从 mcp 配置 JSON 数 server(mcpServers 键);读失败 → 0 */

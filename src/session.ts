@@ -49,6 +49,7 @@ import {
   decorateSegment,
   loadModelNames,
   modelsJsonPath,
+  type NativeStatusEntry,
   resolveContextBar,
   resolveContextCompact,
   resolveCost,
@@ -227,7 +228,7 @@ export interface SegmentInputs {
       }
     | undefined;
   modelNames: Record<string, Record<string, string>>;
-  nativeStatuses: string[];
+  nativeStatuses: NativeStatusEntry[];
   skillCount: number;
   thinkingLevel: ThinkingLevel | null;
   usage: SessionUsage;
@@ -239,7 +240,7 @@ export function collectInputs(
   ctx: ExtensionContext,
   runtime: SessionRuntime,
   branchName: string | null,
-  nativeStatuses: readonly string[] = [],
+  nativeStatuses: ReadonlyMap<string, string> = new Map(),
 ): SegmentInputs {
   const contextUsage = ctx.getContextUsage();
   const agentDir = getAgentDir();
@@ -272,12 +273,10 @@ export function collectInputs(
         }
       : undefined,
     modelNames,
+    nativeStatuses: resolveNativeFooter(nativeStatuses),
     skillCount: countSkills(settingsRaw),
     thinkingLevel: pi.getThinkingLevel(),
     usage: aggregateUsage(ctx.sessionManager.getBranch()),
-    nativeStatuses: [
-      ...nativeStatuses,
-    ],
   };
 }
 
@@ -340,8 +339,8 @@ export function renderSegment(
       text = resolveModelId(ctx);
       break;
     case "native_footer":
-      text = resolveNativeFooter(ctx, inputs.nativeStatuses);
-      break;
+      // 多实例参数: 由 buildFooterRows 按容量展开, 此处不产出单段
+      return null;
     case "provider":
       text = resolveProvider(ctx);
       break;
@@ -394,6 +393,13 @@ export function buildFooterRows(
       .flatMap(slotValues)
       .filter((id) => id !== "none"),
   );
+  // 原生状态池: 边框槽占用时整体抑制; hidden 中的 key 在装箱前移除
+  const nativePool = activeBorderIds.has("native_footer")
+    ? []
+    : inputs.nativeStatuses.filter(
+        (entry) => !config.native_status.hidden.includes(entry.key),
+      );
+  let nativeCursor = 0;
   const renderRows = (
     layout: MinifooterConfig["footer_layout"],
     excludeNative: boolean,
@@ -402,8 +408,24 @@ export function buildFooterRows(
       const segments: FooterSegment[] = [];
       for (const item of row.items) {
         const id = typeof item === "string" ? item : item.id;
-        if ((excludeNative && id === "native_footer") || activeBorderIds.has(id))
+        if (excludeNative && id === "native_footer") continue;
+        if (id === "native_footer") {
+          const max = typeof item === "string" ? undefined : item.max;
+          const take = Math.max(
+            0,
+            max === undefined ? nativePool.length - nativeCursor : max,
+          );
+          for (const entry of nativePool.slice(nativeCursor, nativeCursor + take)) {
+            segments.push({
+              colorToken: null,
+              id: "native_footer",
+              text: entry.text,
+            });
+          }
+          nativeCursor += take;
           continue;
+        }
+        if (activeBorderIds.has(id)) continue;
         const seg = renderSegment(
           id,
           config,
@@ -439,14 +461,28 @@ export function buildBorderSegments(
     "bottom_left",
     "bottom_right",
   ] as const) {
-    const rendered = slotItems(config.border_slots[slot])
-      .filter((item) => item !== "none")
-      .map((item) =>
+    const rendered: FooterSegment[] = [];
+    for (const item of slotItems(config.border_slots[slot])) {
+      if (item === "none") continue;
+      const id = typeof item === "string" ? item : item.id;
+      // 边框槽无容量概念: native_footer 装入全部状态, 超宽由 fitBorder 截断
+      if (id === "native_footer") {
+        for (const entry of inputs.nativeStatuses) {
+          if (config.native_status.hidden.includes(entry.key)) continue;
+          rendered.push({
+            id,
+            colorToken: null,
+            text: entry.text,
+          });
+        }
+        continue;
+      }
+      const seg =
         typeof item === "string"
           ? renderSegment(item, config, inputs, width, runPorcelain)
-          : renderSegment(item.id, config, inputs, width, runPorcelain, item.showIcon),
-      )
-      .filter((segment): segment is FooterSegment => segment !== null);
+          : renderSegment(item.id, config, inputs, width, runPorcelain, item.showIcon);
+      if (seg !== null) rendered.push(seg);
+    }
     out[slot] =
       rendered.length === 0
         ? null
@@ -502,15 +538,9 @@ class MiniFooter implements Component {
       this.env.ctx,
       this.env.runtime,
       this.env.branchName,
-      [
-        ...this.footerData.getExtensionStatuses().entries(),
-      ]
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([, text]) => text),
+      this.footerData.getExtensionStatuses(),
     );
-    this.env.runtime.nativeStatuses = [
-      ...inputs.nativeStatuses,
-    ];
+    this.env.runtime.nativeStatuses = inputs.nativeStatuses;
     const rows = buildFooterRows(this.env.runtime.config, inputs, width, () =>
       fetchPorcelain(this.env.pi, this.env.runtime, this.env.ctx.cwd),
     );
@@ -559,6 +589,7 @@ class BorderStatusEditor extends CustomEditor {
       this.env.ctx,
       this.env.runtime,
       this.env.branchName,
+      this.env.runtime.footerData?.getExtensionStatuses() ?? new Map(),
     );
     const segs = buildBorderSegments(this.env.runtime.config, inputs, width, () =>
       fetchPorcelain(this.env.pi, this.env.runtime, this.env.ctx.cwd),
@@ -671,7 +702,9 @@ export class SessionRuntime {
   setEditorSync(sync: () => void): void {
     this.syncEditor = sync;
   }
-  nativeStatuses: string[] = [];
+  nativeStatuses: NativeStatusEntry[] = [];
+  /** setFooter 工厂注入: 边框槽取原生状态用(editor 组件不持有 footerData) */
+  footerData: ReadonlyFooterDataProvider | null = null;
 }
 
 // ─── 接线入口 ────────────────────────────────────────────────────────────────
@@ -706,6 +739,7 @@ export function wireSession(pi: ExtensionAPI, runtime: SessionRuntime): void {
     // 2. footer(无条件)
     ctx.ui.setFooter((tui, theme, footerData) => {
       env.branchName = footerData.getGitBranch();
+      runtime.footerData = footerData;
       const footer = new MiniFooter(tui, theme, footerData, env);
       runtime.activeTui = tui;
       return footer;

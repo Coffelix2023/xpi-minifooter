@@ -334,30 +334,112 @@ describe("2.7 usage segments", () => {
 // ─── 2.8 native_footer / mcp_skills ─────────────────────────────────────────
 
 describe("2.8 native_footer & mcp_skills", () => {
-  test("native_footer joins status texts with indicator glyphs", () => {
-    expect(
-      resolveNativeFooter(noopCtx, [
-        "● rtk:on",
-        "⚡MCP: 3 servers enabled",
-      ]),
-    ).toBe("● rtk:on ⚡MCP: 3 servers enabled");
-  });
-  test("native_footer is width-safe", () => {
+  test("native_footer preserves keys and cleans text", () => {
     expect(
       resolveNativeFooter(
-        {
-          ...noopCtx,
-          width: 18,
-        },
-        [
-          "first",
-          "second",
-        ],
+        new Map([
+          [
+            "rtk",
+            "● rtk:on",
+          ],
+          [
+            "mcp",
+            "⚡MCP: 3 servers enabled",
+          ],
+        ]),
       ),
-    ).toBe("first second");
+    ).toEqual([
+      {
+        key: "mcp",
+        text: "⚡MCP: 3 servers enabled",
+      },
+      {
+        key: "rtk",
+        text: "● rtk:on",
+      },
+    ]);
   });
-  test("native_footer omitted when empty", () => {
-    expect(resolveNativeFooter(noopCtx, [])).toBeNull();
+  test("native_footer orders entries by key ascending", () => {
+    expect(
+      resolveNativeFooter(
+        new Map([
+          [
+            "rtk",
+            "c",
+          ],
+          [
+            "caveman",
+            "a",
+          ],
+          [
+            "ponytail",
+            "b",
+          ],
+        ]),
+      ).map((entry) => entry.key),
+    ).toEqual([
+      "caveman",
+      "ponytail",
+      "rtk",
+    ]);
+  });
+  test("native_footer strips terminal sequences", () => {
+    expect(
+      resolveNativeFooter(
+        new Map([
+          [
+            "lsp",
+            "\u001b[32m●\u001b[0m LSP Inactive",
+          ],
+        ]),
+      ),
+    ).toEqual([
+      {
+        key: "lsp",
+        text: "● LSP Inactive",
+      },
+    ]);
+  });
+  test("native_footer collapses newlines and tabs", () => {
+    expect(
+      resolveNativeFooter(
+        new Map([
+          [
+            "multi",
+            "first\nsecond\tthird",
+          ],
+        ]),
+      ),
+    ).toEqual([
+      {
+        key: "multi",
+        text: "first second third",
+      },
+    ]);
+  });
+  test("native_footer drops entries whose cleaned text is empty", () => {
+    expect(
+      resolveNativeFooter(
+        new Map([
+          [
+            "blank",
+            "   ",
+          ],
+          [
+            "rtk",
+            "on",
+          ],
+        ]),
+      ),
+    ).toEqual([
+      {
+        key: "rtk",
+        text: "on",
+      },
+    ]);
+  });
+  test("native_footer returns empty array when there are no statuses", () => {
+    expect(resolveNativeFooter(new Map())).toEqual([]);
   });
 
   test("mcp server count from config json", () => {

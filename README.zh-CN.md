@@ -53,6 +53,18 @@ footer_layout:
   - separator: slash
     items: [context_bar, tokens, cost, session_time]
 
+# 原生扩展状态的额外行。`max` 限制该行最多显示几个状态（1-5）；
+# 省略 `max` 表示剩余状态全部放进该行。
+native_footer_layout:
+  - separator: slash
+    items:
+      - { id: native_footer, max: 2 }
+
+# 按扩展 key 隐藏单个扩展。key 不按固定列表校验，
+# 因此扩展未运行时该条目仍会保留。
+native_status:
+  hidden: [rtk]
+
 # Context 警示阈值，单位为百分比。
 thresholds:
   context_warn: 50
@@ -75,10 +87,20 @@ thresholds:
 | `tokens` | 输入/输出 token 总数；`usage_detail` 可追加缓存读写 | 首次模型响应前 |
 | `cost` | 会话成本，货币由 `cost_currency` 决定（默认人民币） | 成本未知 |
 | `session_time` | 会话经过时间 | 起始时间未知 |
-| `native_footer` | 原生 footer 常驻扩展状态（自带运行指示灯） | 无扩展状态 |
+| `native_footer` | 原生扩展状态，每个扩展一段 | 无扩展状态，或所有 key 都被隐藏 |
 | `mcp_skills` | MCP server 与 skill 数量 | 两者都为零 |
 
 `footer_layout` 只接受以上 13 个 id。行宽不足时先压缩 `cwd_path` 和 `native_footer`，再从尾部逐段省略，不会清空整行。
+
+### 控制原生状态
+
+扩展通过 `ctx.ui.setStatus(key, text)` 发布状态。footer 把每个状态保留为独立段，并按 key 升序排列，与 Pi 原生 footer 一致。
+
+- **隐藏某个扩展**：把它的 key 写进 `native_status.hidden`。匹配按 key 而非显示文本，所以 `ponytail` 的文案从 `FULL` 变成 `ULTRA` 后隐藏依然生效。扩展未运行时该 key 仍会保留在文件里。
+- **限制每行数量**：给 `native_footer` item 设置 `max`（1-5）。行按布局顺序装填；当总容量小于状态数量时，多出的状态被丢弃。配置面板预览会列出哪些状态不会显示。
+- **放进编辑器边框**：`border_slots` 中写 `native_footer` 会在该角显示全部状态。边框角没有容量上限，放不下时按既有边框规则截断。
+
+原生状态文本统一使用 muted 配色，忽略扩展自带颜色。控制序列会被剥离、空白会被折叠，因此状态不会增加或移动 footer 行数。代价是扩展的颜色提示（例如 LSP 扩展区分活跃/非活跃）不再保留。
 
 `usage_detail` 明细标记：`↑` 输入、`↓` 输出、`R` cacheRead、`W` cacheWrite；费用明细复用同一套标记。人民币汇率取自配置的静态值，footer 不会发起网络请求。
 

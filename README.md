@@ -53,6 +53,18 @@ footer_layout:
   - separator: slash
     items: [context_bar, tokens, cost, session_time]
 
+# Extra rows for native extension statuses. `max` caps how many statuses this
+# row shows (1-5); omit `max` to put every remaining status in the row.
+native_footer_layout:
+  - separator: slash
+    items:
+      - { id: native_footer, max: 2 }
+
+# Hide individual extensions by their status key. Keys are not validated
+# against a fixed list, so a hidden key survives while its extension is off.
+native_status:
+  hidden: [rtk]
+
 # Context warning steps, in percent.
 thresholds:
   context_warn: 50
@@ -77,10 +89,20 @@ thresholds:
 | `tokens` | Input/output totals; `usage_detail` adds cache read/write | Before the first model response |
 | `cost` | Session cost in `cost_currency` (default CNY) | Cost unavailable |
 | `session_time` | Elapsed session time | Start time unavailable |
-| `native_footer` | Native footer extension statuses (with indicator lights) | No extension statuses |
+| `native_footer` | Native footer extension statuses, one segment per extension | No extension statuses, or every key is hidden |
 | `mcp_skills` | MCP server and skill counts | Both counts are zero |
 
 `footer_layout` accepts only these 13 ids. Lines are width-safe: `cwd_path` and `native_footer` compress first, then tail segments are dropped one at a time.
+
+### Controlling native statuses
+
+Extensions publish statuses through `ctx.ui.setStatus(key, text)`. The footer keeps each status as its own segment and orders them by key, matching Pi's own footer.
+
+- **Hide one extension**: list its key in `native_status.hidden`. Matching is by key, not by the displayed text, so hiding `ponytail` keeps working after the extension changes its label from `FULL` to `ULTRA`. A key stays in the file even when its extension is not running.
+- **Limit a row**: set `max` (1-5) on a `native_footer` item. Rows fill in layout order; when the total capacity is smaller than the number of statuses, the surplus is dropped. The configuration panel preview reports which statuses will not be shown.
+- **Put them in the editor border**: a `border_slots` entry of `native_footer` renders every status in that corner. Border corners have no capacity limit; content that does not fit is truncated by the usual border rules.
+
+Native status text is rendered in the muted color regardless of any color the originating extension embedded. Control sequences are stripped and whitespace is collapsed, so a status cannot add or shift footer rows. This means per-extension color cues (for example an LSP extension distinguishing active from inactive) are not preserved.
 
 `usage_detail` detail marks: `↑` input, `↓` output, `R` cacheRead, `W` cacheWrite. Cost detail reuses the same marks for the four cost parts. The CNY rate is a static configured value — the footer never calls the network.
 

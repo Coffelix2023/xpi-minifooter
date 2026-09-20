@@ -11,7 +11,7 @@ import Type from "typebox";
 import { Compile } from "typebox/compile";
 import { parse, stringify } from "yaml";
 
-/** 12 个参数 id(minifooter-segments 契约, task 2.x 填充渲染器) */
+/** 参数 id 闭集(minifooter-segments 契约, task 2.x 填充渲染器) */
 export const PARAMETER_IDS = [
   "model_name",
   "model_id",
@@ -79,6 +79,12 @@ const footerItemSchema = Type.Union([
   ...PARAMETER_IDS.map((id) => Type.Literal(id)),
   Type.Object({
     id: Type.Union(PARAMETER_IDS.map((id) => Type.Literal(id))),
+    max: Type.Optional(
+      Type.Integer({
+        maximum: 5,
+        minimum: 1,
+      }),
+    ),
     showIcon: Type.Optional(Type.Boolean()),
   }),
 ]);
@@ -91,6 +97,15 @@ const footerLayoutRowSchema = Type.Object({
       Type.Literal("pipe"),
       Type.Literal("space"),
     ]),
+  ),
+});
+const nativeStatusSchema = Type.Object({
+  hidden: Type.Optional(
+    Type.Array(
+      Type.String({
+        minLength: 1,
+      }),
+    ),
   ),
 });
 // 所有字段 Optional: 用户文件只写子集, 缺省由 DEFAULT_CONFIG 补齐(默认值在代码)
@@ -138,6 +153,7 @@ export const configSchema = Type.Object(
       ]),
     ),
     native_footer_layout: Type.Optional(Type.Array(footerLayoutRowSchema)),
+    native_status: Type.Optional(nativeStatusSchema),
     show_icons: Type.Optional(Type.Boolean()),
     show_labels: Type.Optional(Type.Boolean()),
     style: Type.Optional(Type.Literal("minimalist")),
@@ -197,6 +213,7 @@ export interface MinifooterConfig {
       | ParameterId
       | {
           id: ParameterId;
+          max?: number;
           showIcon?: boolean;
         }
     )[];
@@ -209,11 +226,15 @@ export interface MinifooterConfig {
       | ParameterId
       | {
           id: ParameterId;
+          max?: number;
           showIcon?: boolean;
         }
     )[];
     separator: "slash" | "dot" | "pipe" | "space";
   }[];
+  native_status: {
+    hidden: string[];
+  };
   show_icons: boolean;
   show_labels: boolean;
   style: "minimalist";
@@ -273,6 +294,9 @@ export const DEFAULT_CONFIG: MinifooterConfig = {
       ],
     },
   ],
+  native_status: {
+    hidden: [],
+  },
   thresholds: {
     context_alert: 75,
     context_danger: 80,
@@ -349,11 +373,30 @@ export function parseConfigWithError(raw: string): ConfigParseResult {
         ]),
       ),
     },
+    native_status: {
+      hidden: partial.native_status?.hidden ?? [],
+    },
     thresholds: {
       ...DEFAULT_CONFIG.thresholds,
       ...partial.thresholds,
     },
   };
+  const badCapacity = [
+    ...merged.footer_layout,
+    ...merged.native_footer_layout,
+  ].some((row) =>
+    row.items.some(
+      (item) =>
+        typeof item !== "string" &&
+        item.max !== undefined &&
+        item.id !== "native_footer",
+    ),
+  );
+  if (badCapacity)
+    return {
+      config: null,
+      error: "footer item capacity is only allowed on native_footer",
+    };
   const duplicateInSlot = Object.values(merged.border_slots).some((slot) => {
     const ids = slotValues(slot).filter((id) => id !== "none");
     return new Set(ids).size !== ids.length;

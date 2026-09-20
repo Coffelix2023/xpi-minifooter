@@ -11,7 +11,7 @@ import type { Component, KeybindingsManager, TUI } from "@earendil-works/pi-tui"
 import { matchesKey } from "@earendil-works/pi-tui";
 import { type MinifooterConfig, slotValues } from "./config.js";
 import { footerLayoutToText, UI_TEXT } from "./panel.js";
-import { formatContextTokens } from "./segments.js";
+import { formatContextTokens, type NativeStatusEntry } from "./segments.js";
 
 const SLOT_ORDER = [
   "top_left",
@@ -39,15 +39,22 @@ export function buildModalLines(
   options: {
     contextTokens?: number | null;
     contextWindow?: number | null;
-    nativeStatuses?: readonly string[];
+    nativeStatuses?: readonly NativeStatusEntry[];
   } = {},
 ): string[] {
   const slots = config.border_slots;
   const t = UI_TEXT[config.lang];
   const L = t.modalLabels;
-  const nativeFooterLine = options.nativeStatuses?.length
-    ? `native footer: ${options.nativeStatuses.join(" ")}`
-    : "native footer: none";
+  const hiddenKeys = config.native_status.hidden;
+  const nativeFooterLine =
+    options.nativeStatuses !== undefined && options.nativeStatuses.length > 0
+      ? `native_status: ${options.nativeStatuses
+          .map(
+            (entry) =>
+              `${entry.key}${hiddenKeys.includes(entry.key) ? " (hidden)" : ""}`,
+          )
+          .join(", ")}`
+      : `native_status: ${hiddenKeys.length > 0 ? hiddenKeys.join(", ") : "none"}`;
   return [
     "xpi-minifooter",
     "",

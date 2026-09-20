@@ -185,4 +185,58 @@ describe("5.7 Pi smoke checklist", () => {
   test("relaxed YAML still parses after a live save payload", () => {
     expect(parseConfig("editor_padding: relaxed")?.editor_padding).toBe("relaxed");
   });
+
+  test("native status control end to end", () => {
+    const config = structuredClone(DEFAULT_CONFIG);
+    config.lang = "en";
+    config.footer_layout = [];
+    config.native_footer_layout = [
+      {
+        separator: "space",
+        items: [
+          {
+            id: "native_footer",
+            max: 2,
+          },
+        ],
+      },
+    ];
+    config.native_status = {
+      hidden: [
+        "rtk",
+      ],
+    };
+
+    const rows = buildFooterRows(
+      config,
+      {
+        ...inputs(),
+        nativeStatuses: [
+          {
+            key: "caveman",
+            text: "○ caveman idle",
+          },
+          {
+            key: "pi-lens-lsp",
+            text: "LSP Inactive",
+          },
+          {
+            key: "rtk",
+            text: "● rtk:on",
+          },
+        ],
+      },
+      200,
+      () => null,
+    );
+    expect(rows[0]?.segments.map((segment) => segment.text)).toEqual([
+      "○ caveman idle",
+      "LSP Inactive",
+    ]);
+
+    const html = buildPanelHtml(config, {
+      nativeStatuses: [],
+    });
+    expect(html).toContain('var NATIVE_HIDDEN = ["rtk"]');
+  });
 });

@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { MinifooterConfig } from "../src/config.js";
 import { DEFAULT_CONFIG } from "../src/config.js";
 import { type BorderSlots, shouldInstallEditor } from "../src/editor-border.js";
-import type { SessionUsage } from "../src/segments.js";
+import type { NativeStatusEntry, SessionUsage } from "../src/segments.js";
 import {
   addEditorPadding,
   aggregateUsage,
@@ -813,7 +813,10 @@ describe("SegmentInputs consumers", () => {
       skillCount: 0,
       thinkingLevel: null,
       nativeStatuses: [
-        "● rtk:on",
+        {
+          key: "rtk",
+          text: "● rtk:on",
+        },
       ],
       usage: {
         costTotal: null,
@@ -878,5 +881,308 @@ describe("SegmentInputs consumers", () => {
     expect(renderSegment("cwd_path", config, inputs, 120, () => null)?.text).toBe(
       "xpi-minifooter",
     );
+  });
+});
+
+// ─── native status packing (task 3.2, 3.3) ──────────────────────────────────
+
+function nativeInputs(nativeStatuses: NativeStatusEntry[]): SegmentInputs {
+  return {
+    branchName: null,
+    contextPct: null,
+    cwd: "/tmp/project",
+    elapsedSeconds: null,
+    home: "/tmp",
+    mcpCount: 0,
+    model: undefined,
+    modelNames: {},
+    nativeStatuses,
+    skillCount: 0,
+    thinkingLevel: null,
+    usage: {
+      costTotal: null,
+      hasTurn: false,
+      inputTokens: 0,
+      outputTokens: 0,
+    },
+  };
+}
+
+function entries(...keys: string[]): NativeStatusEntry[] {
+  return keys.map((key) => ({
+    key,
+    text: `${key}-text`,
+  }));
+}
+
+describe("native status packing (task 3.2, 3.3)", () => {
+  test("border native_footer suppresses every footer occurrence", () => {
+    const rows = buildFooterRows(
+      fakeConfig({
+        border_slots: {
+          ...structuredClone(DEFAULT_CONFIG.border_slots),
+          top_right: [
+            "native_footer",
+          ],
+        },
+        footer_layout: [
+          {
+            separator: "space",
+            items: [
+              "native_footer",
+            ],
+          },
+        ],
+        native_footer_layout: [
+          {
+            separator: "dot",
+            items: [
+              "native_footer",
+            ],
+          },
+        ],
+      }),
+      nativeInputs(entries("rtk")),
+      120,
+      () => null,
+    );
+    expect(rows.every((row) => row.segments.length === 0)).toBe(true);
+  });
+
+  test("capacity splits statuses across rows", () => {
+    const rows = buildFooterRows(
+      fakeConfig({
+        footer_layout: [],
+        native_footer_layout: [
+          {
+            separator: "space",
+            items: [
+              {
+                id: "native_footer",
+                max: 2,
+              },
+            ],
+          },
+          {
+            separator: "dot",
+            items: [
+              {
+                id: "native_footer",
+                max: 3,
+              },
+            ],
+          },
+        ],
+      }),
+      nativeInputs(entries("a", "b", "c", "d", "e")),
+      200,
+      () => null,
+    );
+    expect(rows[0]?.segments.map((s) => s.text)).toEqual([
+      "a-text",
+      "b-text",
+    ]);
+    expect(rows[1]?.segments.map((s) => s.text)).toEqual([
+      "c-text",
+      "d-text",
+      "e-text",
+    ]);
+  });
+
+  test("omitted capacity fills a single row", () => {
+    const rows = buildFooterRows(
+      fakeConfig({
+        footer_layout: [],
+        native_footer_layout: [
+          {
+            separator: "space",
+            items: [
+              "native_footer",
+            ],
+          },
+        ],
+      }),
+      nativeInputs(entries("a", "b", "c", "d")),
+      200,
+      () => null,
+    );
+    expect(rows[0]?.segments.map((s) => s.text)).toEqual([
+      "a-text",
+      "b-text",
+      "c-text",
+      "d-text",
+    ]);
+  });
+
+  test("surplus statuses are dropped without a marker", () => {
+    const rows = buildFooterRows(
+      fakeConfig({
+        footer_layout: [],
+        native_footer_layout: [
+          {
+            separator: "space",
+            items: [
+              {
+                id: "native_footer",
+                max: 3,
+              },
+            ],
+          },
+        ],
+      }),
+      nativeInputs(entries("a", "b", "c", "d", "e")),
+      200,
+      () => null,
+    );
+    expect(rows[0]?.segments).toHaveLength(3);
+    expect(rows[0]?.segments.map((s) => s.text)).toEqual([
+      "a-text",
+      "b-text",
+      "c-text",
+    ]);
+  });
+
+  test("hidden keys are removed before packing", () => {
+    const rows = buildFooterRows(
+      fakeConfig({
+        footer_layout: [],
+        native_footer_layout: [
+          {
+            separator: "space",
+            items: [
+              {
+                id: "native_footer",
+                max: 3,
+              },
+            ],
+          },
+        ],
+        native_status: {
+          hidden: [
+            "b",
+          ],
+        },
+      }),
+      nativeInputs(entries("a", "b", "c", "d", "e")),
+      200,
+      () => null,
+    );
+    expect(rows[0]?.segments.map((s) => s.text)).toEqual([
+      "a-text",
+      "c-text",
+      "d-text",
+    ]);
+  });
+
+  test("each status is its own segment", () => {
+    const rows = buildFooterRows(
+      fakeConfig({
+        footer_layout: [],
+        native_footer_layout: [
+          {
+            separator: "dot",
+            items: [
+              "native_footer",
+            ],
+          },
+        ],
+      }),
+      nativeInputs(entries("a", "b", "c")),
+      200,
+      () => null,
+    );
+    expect(rows[0]?.segments).toHaveLength(3);
+    expect(rows[0]?.segments.every((s) => s.id === "native_footer")).toBe(true);
+  });
+});
+
+// ─── border native_footer data path (task 3.4) ──────────────────────────────
+
+describe("border native_footer (task 3.4)", () => {
+  test("border slot renders every status without capacity", () => {
+    const segs = buildBorderSegments(
+      fakeConfig({
+        border_slots: {
+          ...structuredClone(DEFAULT_CONFIG.border_slots),
+          top_right: [
+            "native_footer",
+          ],
+        },
+      }),
+      nativeInputs(entries("a", "b", "c", "d", "e", "f")),
+      200,
+      () => null,
+    );
+    expect(segs.top_right?.text).toBe("a-text b-text c-text d-text e-text f-text");
+  });
+
+  test("border slot drops hidden statuses", () => {
+    const segs = buildBorderSegments(
+      fakeConfig({
+        border_slots: {
+          ...structuredClone(DEFAULT_CONFIG.border_slots),
+          top_left: [
+            "native_footer",
+          ],
+        },
+        native_status: {
+          hidden: [
+            "b",
+          ],
+        },
+      }),
+      nativeInputs(entries("a", "b")),
+      200,
+      () => null,
+    );
+    expect(segs.top_left?.text).toBe("a-text");
+  });
+
+  test("no statuses leaves the border slot empty", () => {
+    const segs = buildBorderSegments(
+      fakeConfig({
+        border_slots: {
+          ...structuredClone(DEFAULT_CONFIG.border_slots),
+          top_left: [
+            "native_footer",
+          ],
+        },
+      }),
+      nativeInputs([]),
+      200,
+      () => null,
+    );
+    expect(segs.top_left).toBeNull();
+  });
+
+  test("footer factory stores footerData for the editor", () => {
+    const { mock, runtime } = wiredRuntime(fakeConfig(), baseDeps);
+    const footerData = {
+      getAvailableProviderCount: () => 0,
+      getExtensionStatuses: () =>
+        new Map([
+          [
+            "rtk",
+            "● rtk:on",
+          ],
+        ]),
+      getGitBranch: () => null,
+      onBranchChange: () => () => {},
+    };
+    const factory = mock.footerFactories[0] as (
+      tui: unknown,
+      theme: unknown,
+      data: unknown,
+    ) => unknown;
+    factory(
+      {
+        requestRender: () => {},
+      },
+      {
+        fg: (_t: string, s: string) => s,
+      },
+      footerData,
+    );
+    expect(runtime.footerData).toBe(footerData);
   });
 });
