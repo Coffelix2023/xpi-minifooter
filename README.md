@@ -20,6 +20,17 @@ ln -s "$(pwd)" ~/.pi/agent/extensions/xpi-minifooter
 /reload
 ```
 
+### Compatibility
+
+Built and type-checked against Pi **0.87.0** (`@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui`). Pi bundles the core packages for extensions, so the extension declares them as `peerDependencies: "*"` and never bundles its own copy: the running Pi provides the API, and the pinned devDependencies only decide which `.d.ts` the type check sees.
+
+No code change was needed for the 0.85–0.87 releases: the extension registers only `session_start`, `agent_start`, `agent_settled`, and `session_shutdown`, and never switches exhaustively over `SessionEntry` or `ExtensionEvent` — the two unions that gained members (`usage`, `context_edit`, `agent_before_settle`, `context_with_system`).
+
+Two behaviours of Pi 0.87 are deliberately not used yet, and both are optional:
+
+- **Editor border hooks**: the custom editor rewrites its first and last rendered rows, so Pi's `↑ N more` overflow marker on a scrolled editor is replaced by the border slots. Overriding `renderTopBorder` / `renderBottomBorder` would preserve both.
+- **`embedWorkingStatus`**: custom editors keep the standalone working/compaction/retry rows by default. The border-embedded spinners are opt-in and are not enabled here.
+
 ## Use
 
 The footer is loaded on session start. Run `/xpi-minifooter` to open the configuration panel. Glimpse is used when available; otherwise Pi shows a centered TUI modal. Saving applies immediately; cancelling changes nothing. If another extension owns the editor, leave all `border_slots` set to `none`.
