@@ -72,6 +72,17 @@ thresholds:
   context_danger: 80
 ```
 
+## 配置校验
+
+`minifooter.yml` 在加载时以及每次外部修改后都会校验。校验不通过时整份文件作废：保留上一份有效配置，并输出一条指明违规字段的警告。
+
+```text
+xpi-minifooter: invalid minifooter.yml: invalid configuration values: /native_footer_layout/3/items/1 = "mcp_skills" — keeping last valid config
+```
+
+路径是文件内的 JSON pointer（指针路径），`=` 后面是文件里实际写的内容。删掉或改正该处并保存，footer 会在下一次渲染时重载。参数 id 是闭集（见下表），因此写错拼写与「某个 id 已被后续版本删除」的表现一致（`mcp_skills` 在 0.2.0 被移除）。
+
+校验是全有或全无，所以一个过期的 id 会让文件里的其他设置一并失效。警告最多列出三处违规路径。
 ## 参数
 
 | 参数 | 显示内容 | 省略条件 |

@@ -72,8 +72,17 @@ thresholds:
   context_danger: 80
 ```
 
-> Remove the accidental leading space before `density` if copying this example; it should be `density: comfortable` at the document root.
+## Configuration validation
 
+`minifooter.yml` is validated on load and after every external edit. A file that fails validation is skipped as a whole: the last valid configuration stays in effect and Pi prints one warning that names the offending fields.
+
+```text
+xpi-minifooter: invalid minifooter.yml: invalid configuration values: /native_footer_layout/3/items/1 = "mcp_skills" — keeping last valid config
+```
+
+Paths are JSON pointers into the file, and the value after `=` is what the file actually contains there. Delete or correct that entry and save — the footer reloads on the next render. Parameter ids are a closed set (the table below), so a typo fails the same way as an id removed by a later release (`mcp_skills` was dropped in 0.2.0).
+
+Because validation is all-or-nothing, one stale id disables every other setting in the file. The warning names up to three offending paths.
 ## Parameters
 
 | Parameter | Shows | Omits when |

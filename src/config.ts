@@ -317,6 +317,40 @@ export interface ConfigParseResult {
   error: string | null;
 }
 
+/** instancePath(如 /native_footer_layout/3/items/1)→ 该处实际值 */
+function valueAtInstancePath(data: unknown, instancePath: string): unknown {
+  let node: unknown = data;
+  for (const key of instancePath.split("/").filter(Boolean)) {
+    if (node === null || typeof node !== "object") return undefined;
+    node = (node as Record<string, unknown>)[key];
+  }
+  return node;
+}
+
+/**
+ * 校验失败时指名前 3 个违规位置(路径 + 实际值, 每段截断 60 字符)。
+ * 否则用户只看到 "invalid configuration values",无法定位(如段被删除后残留的旧 id)。
+ */
+function describeValidationFailure(
+  errors: readonly {
+    instancePath: string;
+  }[],
+  data: unknown,
+): string {
+  const paths: string[] = [];
+  for (const error of errors) {
+    if (!paths.includes(error.instancePath)) paths.push(error.instancePath);
+    if (paths.length >= 3) break;
+  }
+  return paths
+    .map((path) => {
+      const raw = JSON.stringify(valueAtInstancePath(data, path)) ?? "undefined";
+      const value = raw.length > 60 ? `${raw.slice(0, 60)}…` : raw;
+      return `${path === "" ? "/" : path} = ${value}`;
+    })
+    .join("; ");
+}
+
 /** 解析配置并返回可展示的非敏感错误信息。 */
 export function parseConfigWithError(raw: string): ConfigParseResult {
   let data: unknown;
@@ -347,7 +381,10 @@ export function parseConfigWithError(raw: string): ConfigParseResult {
   if (!validator.Check(data))
     return {
       config: null,
-      error: "invalid configuration values",
+      error: `invalid configuration values: ${describeValidationFailure(
+        validator.Errors(data),
+        data,
+      )}`,
     };
   const partial = data as Partial<MinifooterConfig>;
   const merged: MinifooterConfig = {

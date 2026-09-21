@@ -41,6 +41,31 @@ describe("fail-closed load (task 1.3)", () => {
     expect(last?.config.lang).toBe("en");
   });
 
+  test("unknown parameter names its path and value", () => {
+    // 段被删除后残留的旧 id(如 mcp_skills)必须能被定位, 否则只剩一句无用的
+    // "invalid configuration values"
+    const result = loadConfigWithError(
+      tmpFile(
+        "native_footer_layout:\n  - items:\n      - native_footer\n      - mcp_skills\n    separator: dot",
+      ),
+    );
+    expect(result.loaded).toBeNull();
+    expect(result.error).toContain("/native_footer_layout/0/items/1");
+    expect(result.error).toContain("mcp_skills");
+  });
+
+  test("error detail is bounded", () => {
+    const badRows = Array.from(
+      {
+        length: 20,
+      },
+      (_, i) => `  - items:\n      - nope_${i}`,
+    ).join("\n");
+    const result = loadConfigWithError(tmpFile(`native_footer_layout:\n${badRows}\n`));
+    expect(result.error).not.toBeNull();
+    expect((result.error ?? "").length).toBeLessThan(400);
+  });
+
   test("bad exchange rate keeps last valid config", () => {
     const path = tmpFile("cost_currency: CNY");
     const last = loadConfig(path);
