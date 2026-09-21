@@ -33,10 +33,8 @@ function inputs(): SegmentInputs {
     cwd: "/tmp/project",
     elapsedSeconds: 12,
     home: "/tmp",
-    mcpCount: 0,
     modelNames: {},
     nativeStatuses: [],
-    skillCount: 0,
     thinkingLevel: "off",
     model: {
       id: "gpt-test",

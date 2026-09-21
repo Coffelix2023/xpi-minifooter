@@ -90,9 +90,8 @@ thresholds:
 | `cost` | Session cost in `cost_currency` (default CNY) | Cost unavailable |
 | `session_time` | Elapsed session time | Start time unavailable |
 | `native_footer` | Native footer extension statuses, one segment per extension | No extension statuses, or every key is hidden |
-| `mcp_skills` | MCP server and skill counts | Both counts are zero |
 
-`footer_layout` accepts only these 13 ids. Lines are width-safe: `cwd_path` and `native_footer` compress first, then tail segments are dropped one at a time.
+`footer_layout` accepts only these 12 ids. Lines are width-safe: `cwd_path` and `native_footer` compress first, then tail segments are dropped one at a time.
 
 ### Controlling native statuses
 

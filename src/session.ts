@@ -9,12 +9,10 @@
  * deps 可注入, 单测用 mocks 跑通完整接线。
  */
 import { readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
 import {
   CustomEditor,
   type ExtensionAPI,
   type ExtensionContext,
-  getAgentDir,
   type KeybindingsManager,
   type ReadonlyFooterDataProvider,
   type SessionEntry,
@@ -44,8 +42,6 @@ import {
   thinkingColorToken,
 } from "./footer.js";
 import {
-  countMcpServers,
-  countSkills,
   decorateSegment,
   loadModelNames,
   modelsJsonPath,
@@ -55,7 +51,6 @@ import {
   resolveCost,
   resolveCwdPath,
   resolveGitBranch,
-  resolveMcpSkills,
   resolveModelId,
   resolveModelName,
   resolveNativeFooter,
@@ -194,22 +189,6 @@ export function aggregateUsage(entries: readonly SessionEntry[]): SessionUsage {
   };
 }
 
-function readTextFile(path: string): string | null {
-  try {
-    return readFileSync(path, "utf8");
-  } catch {
-    return null;
-  }
-}
-
-/** MCP 计数: 项目 <cwd>/.pi/mcp.json + 用户 agent dir/mcp.json(缺失 = 0) */
-export function countMcpFromRaws(
-  projectRaw: string | null,
-  userRaw: string | null,
-): number {
-  return countMcpServers(projectRaw) + countMcpServers(userRaw);
-}
-
 /** 渲染所需输入; collectInputs 从 Pi ctx 取数, buildFooterRows 纯消费 */
 export interface SegmentInputs {
   branchName: string | null;
@@ -219,7 +198,6 @@ export interface SegmentInputs {
   cwd: string;
   elapsedSeconds: number | null;
   home: string;
-  mcpCount: number;
   model?:
     | {
         id: string;
@@ -229,7 +207,6 @@ export interface SegmentInputs {
     | undefined;
   modelNames: Record<string, Record<string, string>>;
   nativeStatuses: NativeStatusEntry[];
-  skillCount: number;
   thinkingLevel: ThinkingLevel | null;
   usage: SessionUsage;
 }
@@ -243,8 +220,6 @@ export function collectInputs(
   nativeStatuses: ReadonlyMap<string, string> = new Map(),
 ): SegmentInputs {
   const contextUsage = ctx.getContextUsage();
-  const agentDir = getAgentDir();
-  const settingsRaw = readTextFile(join(agentDir, "settings.json"));
   const modelNames = loadModelNames(
     modelsJsonPath(),
     (p) => ({
@@ -261,10 +236,6 @@ export function collectInputs(
     elapsedSeconds:
       runtime.startAt === 0 ? null : (Date.now() - runtime.startAt) / 1000,
     home: process.env.HOME ?? process.env.USERPROFILE ?? "",
-    mcpCount: countMcpFromRaws(
-      readTextFile(join(ctx.cwd, ".pi", "mcp.json")),
-      readTextFile(join(agentDir, "mcp.json")),
-    ),
     model: ctx.model
       ? {
           id: ctx.model.id,
@@ -274,7 +245,6 @@ export function collectInputs(
       : undefined,
     modelNames,
     nativeStatuses: resolveNativeFooter(nativeStatuses),
-    skillCount: countSkills(settingsRaw),
     thinkingLevel: pi.getThinkingLevel(),
     usage: aggregateUsage(ctx.sessionManager.getBranch()),
   };
@@ -328,9 +298,6 @@ export function renderSegment(
         inputs.branchName,
         runPorcelain,
       );
-      break;
-    case "mcp_skills":
-      text = resolveMcpSkills(ctx, inputs.mcpCount, inputs.skillCount);
       break;
     case "model_name":
       text = resolveModelName(ctx, inputs.modelNames);

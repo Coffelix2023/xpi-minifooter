@@ -88,9 +88,8 @@ thresholds:
 | `cost` | 会话成本，货币由 `cost_currency` 决定（默认人民币） | 成本未知 |
 | `session_time` | 会话经过时间 | 起始时间未知 |
 | `native_footer` | 原生扩展状态，每个扩展一段 | 无扩展状态，或所有 key 都被隐藏 |
-| `mcp_skills` | MCP server 与 skill 数量 | 两者都为零 |
 
-`footer_layout` 只接受以上 13 个 id。行宽不足时先压缩 `cwd_path` 和 `native_footer`，再从尾部逐段省略，不会清空整行。
+`footer_layout` 只接受以上 12 个 id。行宽不足时先压缩 `cwd_path` 和 `native_footer`，再从尾部逐段省略，不会清空整行。
 
 ### 控制原生状态
 

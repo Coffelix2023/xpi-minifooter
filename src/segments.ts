@@ -466,7 +466,6 @@ export const SEGMENT_ICONS: Partial<Record<ParameterId, string>> = {
   cost: "",
   cwd_path: "\uF07B",
   git_branch: "\uE725",
-  mcp_skills: "\uF121",
   model_id: "\uF2DB",
   model_name: "\uF2DB",
   native_footer: "",
@@ -542,7 +541,7 @@ export function decorateSegment(
   return prefix === "" ? text : `${prefix} ${text}`;
 }
 
-// ─── 2.8 native_footer / mcp_skills ─────────────────────────────────────────
+// ─── 2.8 native_footer ─────────────────────────────────────────────────────
 
 /** 一条原生 footer 状态: 扩展 key + 清洗后的显示文本 */
 export interface NativeStatusEntry {
@@ -567,48 +566,4 @@ export function resolveNativeFooter(
       text: stripTerminalSequences(raw).replace(/\s+/g, " ").trim(),
     }))
     .filter((entry) => entry.text !== "");
-}
-
-/** 从 mcp 配置 JSON 数 server(mcpServers 键);读失败 → 0 */
-export function countMcpServers(raw: string | null): number {
-  if (raw === null) return 0;
-  try {
-    const data = JSON.parse(raw) as {
-      mcpServers?: Record<string, unknown>;
-    };
-    return Object.keys(data.mcpServers ?? {}).length;
-  } catch {
-    return 0;
-  }
-}
-
-/** skills 数: settings.json `skills` 数组(或对象值)+ 可选目录 */
-export function countSkills(
-  settingsRaw: string | null,
-  skillDirs: readonly string[] = [],
-): number {
-  let n = 0;
-  if (settingsRaw !== null) {
-    try {
-      const data = JSON.parse(settingsRaw) as {
-        skills?: string[] | Record<string, unknown>;
-      };
-      if (Array.isArray(data.skills)) n += data.skills.length;
-      else if (data.skills && typeof data.skills === "object")
-        n += Object.keys(data.skills).length;
-    } catch {
-      // settings 坏 → 按 0 计
-    }
-  }
-  return n + skillDirs.length;
-}
-
-/** mcp_skills 段: `MCP:3 · Skills:12`;双零 → null */
-export function resolveMcpSkills(
-  _ctx: SegmentContext,
-  mcpCount: number,
-  skillCount: number,
-): string | null {
-  if (mcpCount === 0 && skillCount === 0) return null;
-  return `MCP:${mcpCount} · Skills:${skillCount}`;
 }

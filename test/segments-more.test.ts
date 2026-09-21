@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import {
   contextLevel,
-  countMcpServers,
-  countSkills,
   decorateSegment,
   ICON_CANDIDATES,
   parseGitStatusPorcelain,
@@ -12,7 +10,6 @@ import {
   resolveCost,
   resolveCwdPath,
   resolveGitBranch,
-  resolveMcpSkills,
   resolveNativeFooter,
   resolveSessionTime,
   resolveTokens,
@@ -331,9 +328,9 @@ describe("2.7 usage segments", () => {
   });
 });
 
-// ─── 2.8 native_footer / mcp_skills ─────────────────────────────────────────
+// ─── 2.8 native_footer ─────────────────────────────────────────────────────
 
-describe("2.8 native_footer & mcp_skills", () => {
+describe("2.8 native_footer", () => {
   test("native_footer preserves keys and cleans text", () => {
     expect(
       resolveNativeFooter(
@@ -440,31 +437,6 @@ describe("2.8 native_footer & mcp_skills", () => {
   });
   test("native_footer returns empty array when there are no statuses", () => {
     expect(resolveNativeFooter(new Map())).toEqual([]);
-  });
-
-  test("mcp server count from config json", () => {
-    expect(countMcpServers('{"mcpServers":{"a":{},"b":{}}}')).toBe(2);
-    expect(countMcpServers("{}")).toBe(0);
-    expect(countMcpServers(null)).toBe(0);
-    expect(countMcpServers("{bad")).toBe(0);
-  });
-
-  test("skills count from settings array/object plus dirs", () => {
-    expect(countSkills('{"skills":["a","b"]}')).toBe(2);
-    expect(countSkills('{"skills":{"a":1}}')).toBe(1);
-    expect(
-      countSkills(null, [
-        "dir1",
-        "dir2",
-      ]),
-    ).toBe(2);
-    expect(countSkills('{"skills":[]}')).toBe(0);
-  });
-
-  test("mcp_skills omitted when both zero (spec scenario)", () => {
-    expect(resolveMcpSkills(noopCtx, 0, 0)).toBeNull();
-    expect(resolveMcpSkills(noopCtx, 3, 0)).toBe("MCP:3 · Skills:0");
-    expect(resolveMcpSkills(noopCtx, 0, 12)).toBe("MCP:0 · Skills:12");
   });
 });
 
