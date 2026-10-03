@@ -467,6 +467,7 @@ export const SEGMENT_ICONS: Partial<Record<ParameterId, string>> = {
   cwd_path: "\uF07B",
   git_branch: "\uE725",
   mcp: "\uF121",
+  mcp_status: "\uF121",
   model_id: "\uF2DB",
   model_name: "\uF2DB",
   native_footer: "",
@@ -662,4 +663,38 @@ export function resolveMcp(counts: McpCounts): string | null {
   return counts.enabled === counts.configured
     ? `MCP ${counts.configured}`
     : `MCP ${counts.enabled}/${counts.configured}`;
+}
+
+/**
+ * 已连上并暴露过工具的服务端数: 按 `mcp__<server>` namespace 去重。
+ * 内置 MCP 扩展只在连接成功拿到工具列表后才注册工具, 所以这是可用的真实信号;
+ * pi 1.0.0 未向扩展暴露连接状态, 因此它是「本次会话已连上过」而非「此刻可达」。
+ */
+export function countLiveMcpServers(
+  tools: readonly {
+    namespace?:
+      | {
+          name: string;
+        }
+      | undefined;
+  }[],
+): number {
+  const servers = new Set<string>();
+  for (const tool of tools) {
+    const namespace = tool.namespace?.name;
+    if (namespace === undefined) continue;
+    if (!namespace.startsWith("mcp__")) continue;
+    servers.add(namespace);
+  }
+  return servers.size;
+}
+
+/** mcp_status 段: `MCP 在线 2/3` / `MCP live 2/3`(已连上 / 已启用); 无已启用 server → null。分子按已启用数截断: 扩展注册的 server 不在 mcp.json 里, 不进分母 */
+export function resolveMcpStatus(
+  live: number,
+  enabled: number,
+  lang: "zh" | "en",
+): string | null {
+  if (enabled === 0) return null;
+  return `${lang === "zh" ? "MCP 在线" : "MCP live"} ${Math.min(live, enabled)}/${enabled}`;
 }

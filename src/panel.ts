@@ -329,6 +329,8 @@ export const UI_TEXT: Record<"zh" | "en", UiText> = {
       cwd_path: "current working directory",
       git_branch: "branch and worktree status",
       mcp: "configured MCP servers, enabled/total (not a connection status)",
+      mcp_status:
+        "MCP servers that connected and published tools / enabled servers (live, derived from registered tools)",
       model_id: "active model raw id",
       model_name: "active model friendly name or id",
       native_footer: "native footer extension status indicators",
@@ -424,6 +426,8 @@ export const UI_TEXT: Record<"zh" | "en", UiText> = {
       cwd_path: "当前工作目录",
       git_branch: "分支与工作树状态",
       mcp: "已配置的 MCP server, 启用/总数(不代表连接状态)",
+      mcp_status:
+        "本次会话已连上并暴露工具的 MCP server / 已启用(实时, 由已注册工具反推)",
       model_id: "当前模型原始 id",
       model_name: "当前模型友好名称或 id",
       native_footer: "原生 footer 扩展状态指示",

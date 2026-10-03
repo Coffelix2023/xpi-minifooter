@@ -64,7 +64,7 @@ footer_layout:
   - separator: slash
     items: [context_bar, tokens, cost, session_time]
 # `mcp` 与其他参数一样需要显式加入：把它写进任意一行即可统计 mcp.json 里配置的
-# MCP server（见下文「MCP server」），例如 `[context_bar, tokens, mcp]`。
+# MCP server（见下文「MCP server」），例如 `[context_bar, tokens, mcp, mcp_status]`。
 
 # 原生扩展状态的额外行。`max` 限制该行最多显示几个状态（1-5）；
 # 省略 `max` 表示剩余状态全部放进该行。
@@ -113,14 +113,17 @@ xpi-minifooter: invalid minifooter.yml: invalid configuration values: /native_fo
 | `session_time` | 会话经过时间 | 起始时间未知 |
 | `native_footer` | 原生扩展状态，每个扩展一段 | 无扩展状态，或所有 key 都被隐藏 |
 | `mcp` | `mcp.json` 中已配置的 MCP server；有禁用时显示 `启用/总数` | 什么都没配置 |
+| `mcp_status` | 本次会话已连上并暴露工具的 MCP server / 已启用（`MCP 在线 2/3`） | 没有已启用的 server |
 
-`footer_layout` 只接受以上 13 个 id。行宽不足时先压缩 `cwd_path` 和 `native_footer`，再从尾部逐段省略，不会清空整行。
+`footer_layout` 只接受以上 14 个 id。行宽不足时先压缩 `cwd_path` 和 `native_footer`，再从尾部逐段省略，不会清空整行。
 
 ### MCP server
 
 `mcp` 统计 `mcp.json` 里配置的 server：Pi agent 目录下的用户级文件，以及项目受信后的 `.pi/mcp.json`。同名条目以项目为准；写 `"enabled": false` 的条目计入配置数但不计入启用数；文件缺失或格式错误按 0 计。
 
 全部启用时显示 `MCP 3`，有禁用时显示 `MCP 2/3`，一个都没配置时该段省略。数字来自配置文件而非运行中的连接：配置了但连接失败的 server 依然计数，`mcp` 不代表连接状态。
+
+`mcp_status` 在配置数旁边给出实时数，形如 `MCP 在线 2/3`：分子是本次会话已连上并至少暴露过一个工具的 MCP server 数，分母是 `mcp.json` 中已启用的条目数。pi 没有向扩展暴露 MCP 连接状态，因此分子由已注册工具的 `mcp__<server>` namespace 反推——含义是「本次会话已连上过」，不是「此刻可达」。不提供工具、连接失败或需要登录的 server 不计入。扩展用 `pi.registerMcpServer()` 注册的 server 不在 `mcp.json` 里，因此不进分母，分子也会按分母截断。
 
 ### 控制原生状态
 

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import {
   contextLevel,
+  countLiveMcpServers,
   decorateSegment,
   ICON_CANDIDATES,
   loadMcpCounts,
@@ -12,6 +13,7 @@ import {
   resolveCwdPath,
   resolveGitBranch,
   resolveMcp,
+  resolveMcpStatus,
   resolveNativeFooter,
   resolveSessionTime,
   resolveTokens,
@@ -621,6 +623,45 @@ describe("2.9 mcp", () => {
     expect(fs.reads).toEqual([
       user,
     ]);
+  });
+
+  test("counts distinct mcp__ namespaces among registered tools", () => {
+    expect(
+      countLiveMcpServers([
+        {
+          namespace: {
+            name: "mcp__context7",
+          },
+        },
+        {
+          namespace: {
+            name: "mcp__context7",
+          },
+        },
+        {
+          namespace: {
+            name: "mcp__github",
+          },
+        },
+        {
+          namespace: {
+            name: "read",
+          },
+        },
+        {},
+      ]),
+    ).toBe(2);
+    expect(countLiveMcpServers([])).toBe(0);
+  });
+
+  test("mcp_status shows live / enabled and is omitted without enabled servers", () => {
+    expect(resolveMcpStatus(2, 3, "zh")).toBe("MCP 在线 2/3");
+    expect(resolveMcpStatus(2, 3, "en")).toBe("MCP live 2/3");
+    expect(resolveMcpStatus(3, 3, "zh")).toBe("MCP 在线 3/3");
+    // 扩展注册的 server 不在 mcp.json 中, 分子按已启用数截断
+    expect(resolveMcpStatus(5, 3, "zh")).toBe("MCP 在线 3/3");
+    expect(resolveMcpStatus(0, 0, "zh")).toBeNull();
+    expect(resolveMcpStatus(2, 0, "zh")).toBeNull();
   });
 });
 

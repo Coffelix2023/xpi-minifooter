@@ -33,9 +33,14 @@ function inputs(): SegmentInputs {
     cwd: "/tmp/project",
     elapsedSeconds: 12,
     home: "/tmp",
+    mcpLive: 0,
     modelNames: {},
     nativeStatuses: [],
     thinkingLevel: "off",
+    mcp: {
+      configured: 0,
+      enabled: 0,
+    },
     model: {
       id: "gpt-test",
       name: "gpt-test",

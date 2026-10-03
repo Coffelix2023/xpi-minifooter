@@ -64,7 +64,7 @@ footer_layout:
   - separator: slash
     items: [context_bar, tokens, cost, session_time]
 # `mcp` is opt-in like every parameter: add it to any row to count the servers
-# configured in mcp.json (see "MCP servers" below), for example `[context_bar, tokens, mcp]`.
+# configured in mcp.json (see "MCP servers" below), for example `[context_bar, tokens, mcp, mcp_status]`.
 
 # Extra rows for native extension statuses. `max` caps how many statuses this
 # row shows (1-5); omit `max` to put every remaining status in the row.
@@ -113,14 +113,17 @@ Because validation is all-or-nothing, one stale id disables every other setting 
 | `session_time` | Elapsed session time | Start time unavailable |
 | `native_footer` | Native footer extension statuses, one segment per extension | No extension statuses, or every key is hidden |
 | `mcp` | Configured MCP servers from `mcp.json`; `enabled/total` when some are disabled | Nothing configured |
+| `mcp_status` | MCP servers that connected and published tools / enabled servers (`MCP live 2/3`) | No enabled server |
 
-`footer_layout` accepts only these 13 ids. Lines are width-safe: `cwd_path` and `native_footer` compress first, then tail segments are dropped one at a time.
+`footer_layout` accepts only these 14 ids. Lines are width-safe: `cwd_path` and `native_footer` compress first, then tail segments are dropped one at a time.
 
 ### MCP servers
 
 `mcp` counts the servers configured in `mcp.json`: the user-level file in Pi's agent directory, plus the project `.pi/mcp.json` once the project is trusted. A project entry replaces the user entry with the same name, an entry with `"enabled": false` counts as configured but not enabled, and a missing or malformed file counts as zero.
 
 It shows `MCP 3` when every configured server is enabled and `MCP 2/3` when some are disabled. With nothing configured the segment is omitted. The count comes from the configuration files, not from the running connections: a configured server that failed to connect still counts, and `mcp` is not a connection status.
+
+`mcp_status` adds the live figure next to it as `MCP live 2/3`: the numerator counts MCP servers that connected and published at least one tool in this session, the denominator is the number of enabled `mcp.json` servers. Pi does not expose MCP connection state to extensions, so the numerator is derived from the registered tools' `mcp__<server>` namespaces — it means "connected at least once this session", not "reachable right now". A server that offers no tools, failed to connect, or needs sign-in is not counted. Servers an extension registered with `pi.registerMcpServer()` are not in `mcp.json`, so they stay out of the denominator and the numerator is capped at it.
 
 ### Controlling native statuses
 

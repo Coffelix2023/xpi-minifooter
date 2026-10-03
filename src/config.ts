@@ -26,6 +26,7 @@ export const PARAMETER_IDS = [
   "session_time",
   "native_footer",
   "mcp",
+  "mcp_status",
 ] as const;
 
 export type ParameterId = (typeof PARAMETER_IDS)[number];

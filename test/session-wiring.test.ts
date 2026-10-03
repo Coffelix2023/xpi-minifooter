@@ -40,6 +40,7 @@ function fakePi() {
       stderr: "",
       stdout: "",
     }),
+    getAllTools: () => [],
     getThinkingLevel: () => "off" as const,
     on: (event: string, handler: unknown) => {
       handlers.set(event, handler);
@@ -425,6 +426,7 @@ test("combines two parameters in one border slot", () => {
       cwd: "/tmp/project",
       elapsedSeconds: null,
       home: "/tmp",
+      mcpLive: 0,
       modelNames: {},
       nativeStatuses: [],
       thinkingLevel: null,
@@ -465,6 +467,7 @@ test("footer tokens/cost follow currency and usage_detail config", () => {
       cwd: "/tmp/project",
       elapsedSeconds: null,
       home: "/tmp",
+      mcpLive: 0,
       modelNames: {},
       nativeStatuses: [],
       thinkingLevel: null,
@@ -513,6 +516,7 @@ describe("SegmentInputs consumers", () => {
       cwd: "/tmp/project",
       elapsedSeconds: null,
       home: "/tmp",
+      mcpLive: 0,
       model: undefined,
       modelNames: {},
       nativeStatuses: [],
@@ -536,6 +540,7 @@ describe("SegmentInputs consumers", () => {
       cwd: "/tmp/project",
       elapsedSeconds: 12,
       home: "/tmp",
+      mcpLive: 0,
       modelNames: {},
       nativeStatuses: [],
       thinkingLevel: "off",
@@ -583,6 +588,7 @@ describe("SegmentInputs consumers", () => {
       cwd: "/tmp/project",
       elapsedSeconds: 12,
       home: "/tmp",
+      mcpLive: 0,
       modelNames: {},
       nativeStatuses: [],
       thinkingLevel: "off",
@@ -622,6 +628,7 @@ describe("SegmentInputs consumers", () => {
       cwd: "/tmp/project",
       elapsedSeconds: 12,
       home: "/tmp",
+      mcpLive: 0,
       modelNames: {},
       nativeStatuses: [],
       thinkingLevel: "off",
@@ -672,6 +679,7 @@ describe("SegmentInputs consumers", () => {
       cwd: "/tmp/project",
       elapsedSeconds: 12,
       home: "/tmp",
+      mcpLive: 0,
       modelNames: {},
       nativeStatuses: [],
       thinkingLevel: "off",
@@ -703,6 +711,7 @@ describe("SegmentInputs consumers", () => {
       cwd: "/tmp/project",
       elapsedSeconds: 12,
       home: "/tmp",
+      mcpLive: 0,
       modelNames: {},
       nativeStatuses: [],
       thinkingLevel: "off",
@@ -734,6 +743,7 @@ describe("SegmentInputs consumers", () => {
       cwd: "/tmp/project",
       elapsedSeconds: null,
       home: "/tmp",
+      mcpLive: 0,
       model: undefined,
       modelNames: {},
       nativeStatuses: [],
@@ -789,6 +799,7 @@ describe("SegmentInputs consumers", () => {
       cwd: "/tmp/project",
       elapsedSeconds: null,
       home: "/tmp",
+      mcpLive: 0,
       model: undefined,
       modelNames: {},
       nativeStatuses: [],
@@ -832,6 +843,7 @@ describe("SegmentInputs consumers", () => {
       cwd: "/tmp/project",
       elapsedSeconds: null,
       home: "/tmp",
+      mcpLive: 0,
       model: undefined,
       modelNames: {},
       thinkingLevel: null,
@@ -892,6 +904,7 @@ describe("SegmentInputs consumers", () => {
       cwd: "/Users/felix/c6x_local/app-prd/xpi-minifooter",
       elapsedSeconds: null,
       home: "/Users/felix",
+      mcpLive: 0,
       model: undefined,
       modelNames: {},
       nativeStatuses: [],
@@ -922,6 +935,7 @@ function nativeInputs(nativeStatuses: NativeStatusEntry[]): SegmentInputs {
     cwd: "/tmp/project",
     elapsedSeconds: null,
     home: "/tmp",
+    mcpLive: 0,
     model: undefined,
     modelNames: {},
     mcp: {
@@ -1317,5 +1331,95 @@ describe("mcp wiring (task 2.3)", () => {
       () => null,
     );
     expect(withMcp[0]?.segments[0]?.text.endsWith("MCP 2/3")).toBe(true);
+  });
+});
+
+// ─── mcp_status wiring ──────────────────────────────────────────────────────
+
+describe("mcp_status wiring", () => {
+  test("collectInputs derives the live count from pi.getAllTools()", () => {
+    const mock = fakePi();
+    const pi = {
+      ...mock.pi,
+      getAllTools: () => [
+        {
+          name: "mcp__context7__search",
+          namespace: {
+            name: "mcp__context7",
+          },
+        },
+        {
+          name: "mcp__context7__fetch",
+          namespace: {
+            name: "mcp__context7",
+          },
+        },
+        {
+          name: "mcp__github__list",
+          namespace: {
+            name: "mcp__github",
+          },
+        },
+        {
+          name: "read",
+          namespace: {
+            name: "read",
+          },
+        },
+        {
+          name: "list_mcp_resources",
+        },
+      ],
+    };
+    const runtime = new SessionRuntime({
+      mcpConfigPaths: () => [
+        null,
+        null,
+      ],
+    });
+    const ctx = {
+      ...mock.ctx,
+      isProjectTrusted: () => false,
+    };
+    const inputs = collectInputs(pi as never, ctx as never, runtime, null);
+    expect(inputs.mcpLive).toBe(2);
+    expect(inputs.mcp).toEqual({
+      configured: 0,
+      enabled: 0,
+    });
+  });
+
+  test("the mcp_status segment is muted and localized", () => {
+    const inputs = nativeInputs([]);
+    inputs.mcpLive = 2;
+    inputs.mcp = {
+      configured: 3,
+      enabled: 3,
+    };
+    const zh = renderSegment("mcp_status", fakeConfig(), inputs, 120, () => null);
+    expect(zh?.colorToken).toBeNull();
+    expect(zh?.text.endsWith("MCP 在线 2/3")).toBe(true);
+    const en = renderSegment(
+      "mcp_status",
+      fakeConfig({
+        lang: "en",
+      }),
+      inputs,
+      120,
+      () => null,
+    );
+    expect(en?.text.endsWith("MCP live 2/3")).toBe(true);
+  });
+
+  test("mcp_status is omitted when every configured server is disabled", () => {
+    const inputs = nativeInputs([]);
+    inputs.mcpLive = 0;
+    inputs.mcp = {
+      configured: 2,
+      enabled: 0,
+    };
+    expect(
+      renderSegment("mcp_status", fakeConfig(), inputs, 120, () => null),
+    ).toBeNull();
   });
 });

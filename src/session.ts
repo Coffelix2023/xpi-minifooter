@@ -44,6 +44,7 @@ import {
   thinkingColorToken,
 } from "./footer.js";
 import {
+  countLiveMcpServers,
   decorateSegment,
   loadMcpCounts,
   loadModelNames,
@@ -56,6 +57,7 @@ import {
   resolveCwdPath,
   resolveGitBranch,
   resolveMcp,
+  resolveMcpStatus,
   resolveModelId,
   resolveModelName,
   resolveNativeFooter,
@@ -205,6 +207,7 @@ export interface SegmentInputs {
   elapsedSeconds: number | null;
   home: string;
   mcp: McpCounts;
+  mcpLive: number;
   model?:
     | {
         id: string;
@@ -220,7 +223,7 @@ export interface SegmentInputs {
 
 /** 从 Pi ctx 收集渲染输入(文件读失败按缺省, 不抛) */
 export function collectInputs(
-  pi: Pick<ExtensionAPI, "getThinkingLevel">,
+  pi: Pick<ExtensionAPI, "getAllTools" | "getThinkingLevel">,
   ctx: ExtensionContext,
   runtime: SessionRuntime,
   branchName: string | null,
@@ -250,6 +253,7 @@ export function collectInputs(
       }),
       (p) => readFileSync(p, "utf8"),
     ),
+    mcpLive: countLiveMcpServers(pi.getAllTools()),
     model: ctx.model
       ? {
           id: ctx.model.id,
@@ -324,6 +328,9 @@ export function renderSegment(
       return null;
     case "mcp":
       text = resolveMcp(inputs.mcp);
+      break;
+    case "mcp_status":
+      text = resolveMcpStatus(inputs.mcpLive, inputs.mcp.enabled, config.lang);
       break;
     case "provider":
       text = resolveProvider(ctx);
@@ -483,7 +490,7 @@ export function buildBorderSegments(
 interface RenderEnv {
   branchName: string | null;
   ctx: ExtensionContext;
-  pi: Pick<ExtensionAPI, "exec" | "getThinkingLevel">;
+  pi: Pick<ExtensionAPI, "exec" | "getAllTools" | "getThinkingLevel">;
   runtime: SessionRuntime;
 }
 
