@@ -22,11 +22,11 @@ ln -s "$(pwd)" ~/.pi/agent/extensions/xpi-minifooter
 
 ### Compatibility
 
-Built and type-checked against Pi **0.87.0** (`@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui`). Pi bundles the core packages for extensions, so the extension declares them as `peerDependencies: "*"` and never bundles its own copy: the running Pi provides the API, and the pinned devDependencies only decide which `.d.ts` the type check sees.
+Built and type-checked against Pi **1.0.0** (`@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui`). Pi bundles the core packages for extensions, so the extension declares them as `peerDependencies: "*"` and never bundles its own copy: the running Pi provides the API, and the pinned devDependencies only decide which `.d.ts` the type check sees.
 
-No code change was needed for the 0.85–0.87 releases: the extension registers only `session_start`, `agent_start`, `agent_settled`, and `session_shutdown`, and never switches exhaustively over `SessionEntry` or `ExtensionEvent` — the two unions that gained members (`usage`, `context_edit`, `agent_before_settle`, `context_with_system`).
+No code change was needed for the 0.88–1.0 releases either: the extension registers only `session_start`, `agent_start`, `agent_settled`, and `session_shutdown`, and never switches exhaustively over `SessionEntry` or `ExtensionEvent`. Pi 1.0.0 runs the TUI fullscreen by default (`tuiMode: "regular"` restores scrollback) and ships MCP as built-in extensions reading `mcp.json`.
 
-Two behaviours of Pi 0.87 are deliberately not used yet, and both are optional:
+Two behaviours of Pi 1.0.0 are deliberately not used yet, and both are optional:
 
 - **Editor border hooks**: the custom editor rewrites its first and last rendered rows, so Pi's `↑ N more` overflow marker on a scrolled editor is replaced by the border slots. Overriding `renderTopBorder` / `renderBottomBorder` would preserve both.
 - **`embedWorkingStatus`**: custom editors keep the standalone working/compaction/retry rows by default. The border-embedded spinners are opt-in and are not enabled here.
@@ -110,8 +110,15 @@ Because validation is all-or-nothing, one stale id disables every other setting 
 | `cost` | Session cost in `cost_currency` (default CNY) | Cost unavailable |
 | `session_time` | Elapsed session time | Start time unavailable |
 | `native_footer` | Native footer extension statuses, one segment per extension | No extension statuses, or every key is hidden |
+| `mcp` | Configured MCP servers from `mcp.json`; `enabled/total` when some are disabled | Nothing configured |
 
-`footer_layout` accepts only these 12 ids. Lines are width-safe: `cwd_path` and `native_footer` compress first, then tail segments are dropped one at a time.
+`footer_layout` accepts only these 13 ids. Lines are width-safe: `cwd_path` and `native_footer` compress first, then tail segments are dropped one at a time.
+
+### MCP servers
+
+`mcp` counts the servers configured in `mcp.json`: the user-level file in Pi's agent directory, plus the project `.pi/mcp.json` once the project is trusted. A project entry replaces the user entry with the same name, an entry with `"enabled": false` counts as configured but not enabled, and a missing or malformed file counts as zero.
+
+It shows `MCP 3` when every configured server is enabled and `MCP 2/3` when some are disabled. With nothing configured the segment is omitted. The count comes from the configuration files, not from the running connections: a configured server that failed to connect still counts, and `mcp` is not a connection status.
 
 ### Controlling native statuses
 

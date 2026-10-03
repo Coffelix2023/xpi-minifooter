@@ -3,6 +3,7 @@ import {
   contextLevel,
   decorateSegment,
   ICON_CANDIDATES,
+  loadMcpCounts,
   parseGitStatusPorcelain,
   resetGitCache,
   resolveContextBar,
@@ -10,6 +11,7 @@ import {
   resolveCost,
   resolveCwdPath,
   resolveGitBranch,
+  resolveMcp,
   resolveNativeFooter,
   resolveSessionTime,
   resolveTokens,
@@ -437,6 +439,188 @@ describe("2.8 native_footer", () => {
   });
   test("native_footer returns empty array when there are no statuses", () => {
     expect(resolveNativeFooter(new Map())).toEqual([]);
+  });
+});
+
+// ─── 2.9 mcp ───────────────────────────────────────────────────────────────
+
+describe("2.9 mcp", () => {
+  function fakeFs(files: Record<string, string>): {
+    reads: string[];
+    stat: (p: string) => {
+      mtimeMs: number;
+    };
+    read: (p: string) => string;
+  } {
+    const reads: string[] = [];
+    return {
+      reads,
+      read: (p) => {
+        reads.push(p);
+        const content = files[p];
+        if (content === undefined) throw new Error(`ENOENT: ${p}`);
+        return content;
+      },
+      stat: (p) => {
+        const content = files[p];
+        if (content === undefined) throw new Error(`ENOENT: ${p}`);
+        return {
+          mtimeMs: content.length,
+        };
+      },
+    };
+  }
+
+  test("counts enabled servers and shows the total", () => {
+    const user = "/t1/user.json";
+    const fs = fakeFs({
+      [user]: JSON.stringify({
+        mcpServers: {
+          chrome: {
+            command: "npx",
+          },
+          context7: {
+            url: "https://a",
+          },
+          github: {
+            url: "https://b",
+          },
+        },
+      }),
+    });
+    const counts = loadMcpCounts(
+      [
+        user,
+        "/t1/project.json",
+      ],
+      fs.stat,
+      fs.read,
+    );
+    expect(counts).toEqual({
+      configured: 3,
+      enabled: 3,
+    });
+    expect(resolveMcp(counts)).toBe("MCP 3");
+  });
+
+  test("a disabled entry counts as configured but not enabled", () => {
+    const user = "/t2/user.json";
+    const fs = fakeFs({
+      [user]: JSON.stringify({
+        mcpServers: {
+          context7: {
+            url: "https://a",
+          },
+          github: {
+            enabled: false,
+            url: "https://b",
+          },
+        },
+      }),
+    });
+    expect(
+      resolveMcp(
+        loadMcpCounts(
+          [
+            user,
+          ],
+          fs.stat,
+          fs.read,
+        ),
+      ),
+    ).toBe("MCP 1/2");
+  });
+
+  test("a project entry overrides the user entry of the same name", () => {
+    const user = "/t3/user.json";
+    const project = "/t3/.pi/mcp.json";
+    const fs = fakeFs({
+      [user]: JSON.stringify({
+        mcpServers: {
+          a: {},
+          b: {},
+        },
+      }),
+      [project]: JSON.stringify({
+        mcpServers: {
+          b: {
+            enabled: false,
+          },
+        },
+      }),
+    });
+    expect(
+      resolveMcp(
+        loadMcpCounts(
+          [
+            user,
+            project,
+          ],
+          fs.stat,
+          fs.read,
+        ),
+      ),
+    ).toBe("MCP 1/2");
+  });
+
+  test("missing and malformed files count as zero and do not throw", () => {
+    const user = "/t4/user.json";
+    const malformed = fakeFs({
+      [user]: "{ not json",
+    });
+    expect(
+      resolveMcp(
+        loadMcpCounts(
+          [
+            user,
+            "/t4/project.json",
+          ],
+          malformed.stat,
+          malformed.read,
+        ),
+      ),
+    ).toBeNull();
+    const missing = fakeFs({});
+    expect(
+      resolveMcp(
+        loadMcpCounts(
+          [
+            null,
+            "/t4/project.json",
+          ],
+          missing.stat,
+          missing.read,
+        ),
+      ),
+    ).toBeNull();
+  });
+
+  test("a file is read once per mtime", () => {
+    const user = "/t5/user.json";
+    const fs = fakeFs({
+      [user]: JSON.stringify({
+        mcpServers: {
+          a: {},
+        },
+      }),
+    });
+    loadMcpCounts(
+      [
+        user,
+      ],
+      fs.stat,
+      fs.read,
+    );
+    loadMcpCounts(
+      [
+        user,
+      ],
+      fs.stat,
+      fs.read,
+    );
+    expect(fs.reads).toEqual([
+      user,
+    ]);
   });
 });
 

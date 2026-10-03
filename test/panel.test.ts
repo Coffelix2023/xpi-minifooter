@@ -731,7 +731,7 @@ describe("openGlimpsePanel", () => {
     expect(html).toContain('data-tab="sourceTab"');
     expect(html).toContain('id="yaml_source"');
     expect(html).toContain("Insert template");
-    expect(html).toContain("12-parameter reference");
+    expect(html).toContain("13-parameter reference");
     for (const id of [
       "model_name",
       "model_id",
@@ -745,9 +745,11 @@ describe("openGlimpsePanel", () => {
       "cost",
       "session_time",
       "native_footer",
+      "mcp",
     ]) {
       expect(html).toContain(`<code>${id}</code>`);
     }
+    expect(html).toContain('data-param-description="mcp"');
     expect(html).toContain("editor_padding: default | relaxed");
     expect(html).toContain(
       'window.glimpse.send({ action: action, rawYaml: val("yaml_source") })',

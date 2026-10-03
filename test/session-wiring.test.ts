@@ -1,3 +1,7 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { describe, expect, test } from "vitest";
 import type { MinifooterConfig } from "../src/config.js";
 import { DEFAULT_CONFIG } from "../src/config.js";
@@ -8,6 +12,7 @@ import {
   aggregateUsage,
   buildBorderSegments,
   buildFooterRows,
+  collectInputs,
   type RuntimeDeps,
   renderSegment,
   type SegmentInputs,
@@ -423,6 +428,10 @@ test("combines two parameters in one border slot", () => {
       modelNames: {},
       nativeStatuses: [],
       thinkingLevel: null,
+      mcp: {
+        configured: 0,
+        enabled: 0,
+      },
       model: {
         id: "gpt-test",
         name: "GPT Test",
@@ -459,6 +468,10 @@ test("footer tokens/cost follow currency and usage_detail config", () => {
       modelNames: {},
       nativeStatuses: [],
       thinkingLevel: null,
+      mcp: {
+        configured: 0,
+        enabled: 0,
+      },
       usage: {
         cacheReadTokens: 60_000,
         cacheWriteTokens: 5_000,
@@ -504,6 +517,10 @@ describe("SegmentInputs consumers", () => {
       modelNames: {},
       nativeStatuses: [],
       thinkingLevel: null,
+      mcp: {
+        configured: 0,
+        enabled: 0,
+      },
       usage,
     };
     expect(inputs.usage.costTotal).toBeNull();
@@ -522,6 +539,10 @@ describe("SegmentInputs consumers", () => {
       modelNames: {},
       nativeStatuses: [],
       thinkingLevel: "off",
+      mcp: {
+        configured: 0,
+        enabled: 0,
+      },
       model: {
         id: "gpt-test",
         name: "gpt-test",
@@ -565,6 +586,10 @@ describe("SegmentInputs consumers", () => {
       modelNames: {},
       nativeStatuses: [],
       thinkingLevel: "off",
+      mcp: {
+        configured: 0,
+        enabled: 0,
+      },
       model: {
         id: "gpt-test",
         name: "gpt-test",
@@ -600,6 +625,10 @@ describe("SegmentInputs consumers", () => {
       modelNames: {},
       nativeStatuses: [],
       thinkingLevel: "off",
+      mcp: {
+        configured: 0,
+        enabled: 0,
+      },
       model: {
         id: "gpt-test",
         name: "gpt-test",
@@ -646,6 +675,10 @@ describe("SegmentInputs consumers", () => {
       modelNames: {},
       nativeStatuses: [],
       thinkingLevel: "off",
+      mcp: {
+        configured: 0,
+        enabled: 0,
+      },
       model: {
         id: "gpt-test",
         name: "gpt-test",
@@ -673,6 +706,10 @@ describe("SegmentInputs consumers", () => {
       modelNames: {},
       nativeStatuses: [],
       thinkingLevel: "off",
+      mcp: {
+        configured: 0,
+        enabled: 0,
+      },
       model: {
         id: "gpt-test",
         name: "gpt-test",
@@ -701,6 +738,10 @@ describe("SegmentInputs consumers", () => {
       modelNames: {},
       nativeStatuses: [],
       thinkingLevel: null,
+      mcp: {
+        configured: 0,
+        enabled: 0,
+      },
       usage: {
         costTotal: null,
         hasTurn: false,
@@ -752,6 +793,10 @@ describe("SegmentInputs consumers", () => {
       modelNames: {},
       nativeStatuses: [],
       thinkingLevel: null,
+      mcp: {
+        configured: 0,
+        enabled: 0,
+      },
       usage: {
         costTotal: null,
         hasTurn: false,
@@ -790,6 +835,10 @@ describe("SegmentInputs consumers", () => {
       model: undefined,
       modelNames: {},
       thinkingLevel: null,
+      mcp: {
+        configured: 0,
+        enabled: 0,
+      },
       nativeStatuses: [
         {
           key: "rtk",
@@ -847,6 +896,10 @@ describe("SegmentInputs consumers", () => {
       modelNames: {},
       nativeStatuses: [],
       thinkingLevel: null,
+      mcp: {
+        configured: 0,
+        enabled: 0,
+      },
       usage: {
         costTotal: null,
         hasTurn: false,
@@ -871,6 +924,10 @@ function nativeInputs(nativeStatuses: NativeStatusEntry[]): SegmentInputs {
     home: "/tmp",
     model: undefined,
     modelNames: {},
+    mcp: {
+      configured: 0,
+      enabled: 0,
+    },
     nativeStatuses,
     thinkingLevel: null,
     usage: {
@@ -1158,5 +1215,107 @@ describe("border native_footer (task 3.4)", () => {
       footerData,
     );
     expect(runtime.footerData).toBe(footerData);
+  });
+});
+
+// ─── 2.9 mcp wiring ─────────────────────────────────────────────────────────
+
+describe("mcp wiring (task 2.3)", () => {
+  test("default paths read the user file and the project file only when trusted", () => {
+    const runtime = new SessionRuntime();
+    expect(runtime.mcpPaths("/repo", true)).toEqual([
+      join(getAgentDir(), "mcp.json"),
+      join("/repo", ".pi", "mcp.json"),
+    ]);
+    expect(runtime.mcpPaths("/repo", false)).toEqual([
+      join(getAgentDir(), "mcp.json"),
+      null,
+    ]);
+  });
+
+  test("collectInputs counts the user file and, when trusted, the project file", () => {
+    const dir = mkdtempSync(join(tmpdir(), "minifooter-mcp-"));
+    const user = join(dir, "user-mcp.json");
+    writeFileSync(
+      user,
+      JSON.stringify({
+        mcpServers: {
+          a: {},
+          b: {},
+        },
+      }),
+    );
+    mkdirSync(join(dir, ".pi"), {
+      recursive: true,
+    });
+    writeFileSync(
+      join(dir, ".pi", "mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          c: {},
+        },
+      }),
+    );
+    const runtime = new SessionRuntime({
+      mcpConfigPaths: (cwd, trusted) => [
+        user,
+        trusted ? join(cwd, ".pi", "mcp.json") : null,
+      ],
+    });
+    const mock = fakePi();
+    const untrusted = {
+      ...mock.ctx,
+      cwd: dir,
+      isProjectTrusted: () => false,
+    };
+    expect(
+      collectInputs(mock.pi as never, untrusted as never, runtime, null).mcp,
+    ).toEqual({
+      configured: 2,
+      enabled: 2,
+    });
+    const trusted = {
+      ...untrusted,
+      isProjectTrusted: () => true,
+    };
+    expect(
+      collectInputs(mock.pi as never, trusted as never, runtime, null).mcp,
+    ).toEqual({
+      configured: 3,
+      enabled: 3,
+    });
+  });
+
+  test("the mcp segment is muted and renders only where the layout lists it", () => {
+    const inputs = nativeInputs([]);
+    inputs.mcp = {
+      configured: 3,
+      enabled: 2,
+    };
+    const seg = renderSegment("mcp", fakeConfig(), inputs, 120, () => null);
+    expect(seg?.colorToken).toBeNull();
+    expect(seg?.text.endsWith("MCP 2/3")).toBe(true);
+
+    const without = buildFooterRows(fakeConfig(), inputs, 120, () => null);
+    expect(without.flatMap((row) => row.segments).some((s) => s.id === "mcp")).toBe(
+      false,
+    );
+
+    const withMcp = buildFooterRows(
+      fakeConfig({
+        footer_layout: [
+          {
+            separator: "dot",
+            items: [
+              "mcp",
+            ],
+          },
+        ],
+      }),
+      inputs,
+      120,
+      () => null,
+    );
+    expect(withMcp[0]?.segments[0]?.text.endsWith("MCP 2/3")).toBe(true);
   });
 });

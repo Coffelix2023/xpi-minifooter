@@ -466,6 +466,7 @@ export const SEGMENT_ICONS: Partial<Record<ParameterId, string>> = {
   cost: "",
   cwd_path: "\uF07B",
   git_branch: "\uE725",
+  mcp: "\uF121",
   model_id: "\uF2DB",
   model_name: "\uF2DB",
   native_footer: "",
@@ -566,4 +567,99 @@ export function resolveNativeFooter(
       text: stripTerminalSequences(raw).replace(/\s+/g, " ").trim(),
     }))
     .filter((entry) => entry.text !== "");
+}
+
+// ─── 2.9 mcp ───────────────────────────────────────────────────────────────
+
+/** mcp.json 中我们唯一关心的形状; 只读 mcpServers 的键与 enabled, 不读 env/headers/url */
+interface McpJsonSnapshot {
+  mcpServers?: Record<
+    string,
+    | {
+        enabled?: boolean;
+      }
+    | undefined
+  >;
+}
+
+/** 已配置 / 已启用的 MCP server 数 */
+export interface McpCounts {
+  configured: number;
+  enabled: number;
+}
+
+const mcpFileCache = new Map<
+  string,
+  {
+    mtimeMs: number;
+    servers: Map<string, boolean>;
+  }
+>();
+
+/** 单个 mcp.json → { name → enabled }; 缺文件/坏 JSON/读失败 → 空表(不抛) */
+function readMcpFile(
+  path: string,
+  stat: (p: string) => {
+    mtimeMs: number;
+  },
+  read: (p: string) => string,
+): Map<string, boolean> {
+  let mtimeMs: number;
+  try {
+    mtimeMs = stat(path).mtimeMs;
+  } catch {
+    mcpFileCache.delete(path);
+    return new Map();
+  }
+  const cached = mcpFileCache.get(path);
+  if (cached !== undefined && cached.mtimeMs === mtimeMs) return cached.servers;
+  try {
+    const data = JSON.parse(read(path)) as McpJsonSnapshot;
+    const servers = new Map<string, boolean>();
+    for (const [name, entry] of Object.entries(data.mcpServers ?? {})) {
+      servers.set(name, entry?.enabled !== false);
+    }
+    mcpFileCache.set(path, {
+      mtimeMs,
+      servers,
+    });
+    return servers;
+  } catch {
+    mcpFileCache.delete(path);
+    return new Map();
+  }
+}
+
+/**
+ * 按顺序读多个 mcp.json, 后面的路径同名覆盖前面的(对应 pi 的「项目条目覆盖
+ * 用户条目」), 返回配置数与启用数。null 路径跳过。
+ */
+export function loadMcpCounts(
+  paths: readonly (string | null)[],
+  stat: (p: string) => {
+    mtimeMs: number;
+  },
+  read: (p: string) => string,
+): McpCounts {
+  const merged = new Map<string, boolean>();
+  for (const path of paths) {
+    if (path === null) continue;
+    for (const [name, enabled] of readMcpFile(path, stat, read)) {
+      merged.set(name, enabled);
+    }
+  }
+  let enabled = 0;
+  for (const on of merged.values()) if (on) enabled++;
+  return {
+    configured: merged.size,
+    enabled,
+  };
+}
+
+/** mcp 段: 全启用 `MCP 3`, 有禁用 `MCP 2/3`; 未配置任何 server → null */
+export function resolveMcp(counts: McpCounts): string | null {
+  if (counts.configured === 0) return null;
+  return counts.enabled === counts.configured
+    ? `MCP ${counts.configured}`
+    : `MCP ${counts.enabled}/${counts.configured}`;
 }

@@ -9,10 +9,12 @@
  * deps 可注入, 单测用 mocks 跑通完整接线。
  */
 import { readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 import {
   CustomEditor,
   type ExtensionAPI,
   type ExtensionContext,
+  getAgentDir,
   type KeybindingsManager,
   type ReadonlyFooterDataProvider,
   type SessionEntry,
@@ -43,7 +45,9 @@ import {
 } from "./footer.js";
 import {
   decorateSegment,
+  loadMcpCounts,
   loadModelNames,
+  type McpCounts,
   modelsJsonPath,
   type NativeStatusEntry,
   resolveContextBar,
@@ -51,6 +55,7 @@ import {
   resolveCost,
   resolveCwdPath,
   resolveGitBranch,
+  resolveMcp,
   resolveModelId,
   resolveModelName,
   resolveNativeFooter,
@@ -71,6 +76,7 @@ export interface RuntimeDeps {
     loaded: LoadedConfig | null;
     error: string | null;
   };
+  mcpConfigPaths?: (cwd: string, trusted: boolean) => (string | null)[];
   now?: () => number;
   statMtime?: (path: string) => number | null;
 }
@@ -198,6 +204,7 @@ export interface SegmentInputs {
   cwd: string;
   elapsedSeconds: number | null;
   home: string;
+  mcp: McpCounts;
   model?:
     | {
         id: string;
@@ -236,6 +243,13 @@ export function collectInputs(
     elapsedSeconds:
       runtime.startAt === 0 ? null : (Date.now() - runtime.startAt) / 1000,
     home: process.env.HOME ?? process.env.USERPROFILE ?? "",
+    mcp: loadMcpCounts(
+      runtime.mcpPaths(ctx.cwd, ctx.isProjectTrusted()),
+      (p) => ({
+        mtimeMs: statSync(p).mtimeMs,
+      }),
+      (p) => readFileSync(p, "utf8"),
+    ),
     model: ctx.model
       ? {
           id: ctx.model.id,
@@ -308,6 +322,9 @@ export function renderSegment(
     case "native_footer":
       // 多实例参数: 由 buildFooterRows 按容量展开, 此处不产出单段
       return null;
+    case "mcp":
+      text = resolveMcp(inputs.mcp);
+      break;
     case "provider":
       text = resolveProvider(ctx);
       break;
@@ -592,6 +609,14 @@ function defaultStatMtime(path: string): number | null {
   }
 }
 
+/** 用户级 + 受信项目的 mcp.json;未受信时不读项目路径(与 pi 的 project trust 一致) */
+function defaultMcpConfigPaths(cwd: string, trusted: boolean): (string | null)[] {
+  return [
+    join(getAgentDir(), "mcp.json"),
+    trusted ? join(cwd, ".pi", "mcp.json") : null,
+  ];
+}
+
 /** 会话级运行时: 配置 + mtime 热重载 + porcelain 缓存 */
 export class SessionRuntime {
   config: MinifooterConfig = structuredClone(DEFAULT_CONFIG);
@@ -627,6 +652,7 @@ export class SessionRuntime {
               };
             }
           : loadConfigWithError),
+      mcpConfigPaths: deps.mcpConfigPaths ?? defaultMcpConfigPaths,
       now: deps.now ?? Date.now,
       statMtime: deps.statMtime ?? defaultStatMtime,
     };
@@ -668,6 +694,10 @@ export class SessionRuntime {
 
   setEditorSync(sync: () => void): void {
     this.syncEditor = sync;
+  }
+  /** MCP 配置路径: 用户级 + 受信项目的 .pi/mcp.json */
+  mcpPaths(cwd: string, trusted: boolean): (string | null)[] {
+    return this.deps.mcpConfigPaths(cwd, trusted);
   }
   nativeStatuses: NativeStatusEntry[] = [];
   /** setFooter 工厂注入: 边框槽取原生状态用(editor 组件不持有 footerData) */

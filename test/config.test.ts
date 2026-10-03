@@ -153,6 +153,18 @@ describe("config schema (task 1.2)", () => {
     ).toBeNull();
   });
 
+  test("accepts the mcp parameter id in footer and border slots", () => {
+    const footer = parseConfig("footer_layout:\n  - items: [mcp, cwd_path]");
+    expect(footer?.footer_layout[0]?.items).toEqual([
+      "mcp",
+      "cwd_path",
+    ]);
+    const border = parseConfig("border_slots: { top_right: mcp }");
+    expect(border?.border_slots.top_right).toEqual([
+      "mcp",
+    ]);
+  });
+
   test("cost currency and usage detail default to CNY / 7.2 / off", () => {
     const config = parseConfig("lang: en");
     expect(config?.cost_currency).toBe("CNY");

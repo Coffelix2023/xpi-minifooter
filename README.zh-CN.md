@@ -22,11 +22,11 @@ ln -s "$(pwd)" ~/.pi/agent/extensions/xpi-minifooter
 
 ### 兼容性
 
-针对 Pi **0.87.0** 开发与类型检查（`@earendil-works/pi-coding-agent` 与 `@earendil-works/pi-tui`）。Pi 为扩展自带这些核心包，因此扩展把它们声明为 `peerDependencies: "*"`、绝不打包自备副本：运行时 API 由当前 Pi 提供，devDependencies 的版本只决定类型检查看到哪一份 `.d.ts`。
+针对 Pi **1.0.0** 开发与类型检查（`@earendil-works/pi-coding-agent` 与 `@earendil-works/pi-tui`）。Pi 为扩展自带这些核心包，因此扩展把它们声明为 `peerDependencies: "*"`、绝不打包自备副本：运行时 API 由当前 Pi 提供，devDependencies 的版本只决定类型检查看到哪一份 `.d.ts`。
 
-0.85–0.87 三个版本都没有需要改代码的地方：扩展只注册 `session_start`、`agent_start`、`agent_settled`、`session_shutdown` 四个事件，也不对 `SessionEntry` 或 `ExtensionEvent` 做穷尽 switch——而这两个联合类型恰好是新增成员的那两个（`usage`、`context_edit`、`agent_before_settle`、`context_with_system`）。
+0.88–1.0 各版本也没有需要改代码的地方：扩展只注册 `session_start`、`agent_start`、`agent_settled`、`session_shutdown` 四个事件，也不对 `SessionEntry` 或 `ExtensionEvent` 做穷尽 switch。Pi 1.0.0 的 TUI 默认全屏（`tuiMode: "regular"` 可恢复回滚缓冲），MCP 支持改为内置扩展并从 `mcp.json` 读取。
 
-Pi 0.87 有两个能力本扩展刻意尚未使用，都属于可选：
+Pi 1.0.0 有两个能力本扩展刻意尚未使用，都属于可选：
 
 - **编辑器边框钩子**：自定义编辑器直接改写首行与末行渲染结果，因此编辑器滚动时 Pi 的 `↑ N more` 溢出标记会被边框槽位覆盖。改覆写 `renderTopBorder` / `renderBottomBorder` 可以两者兼得。
 - **`embedWorkingStatus`**：自定义编辑器默认保留独立的 working/compaction/重试行，把 spinner 嵌进边框是 opt-in，本扩展未启用。
@@ -110,8 +110,15 @@ xpi-minifooter: invalid minifooter.yml: invalid configuration values: /native_fo
 | `cost` | 会话成本，货币由 `cost_currency` 决定（默认人民币） | 成本未知 |
 | `session_time` | 会话经过时间 | 起始时间未知 |
 | `native_footer` | 原生扩展状态，每个扩展一段 | 无扩展状态，或所有 key 都被隐藏 |
+| `mcp` | `mcp.json` 中已配置的 MCP server；有禁用时显示 `启用/总数` | 什么都没配置 |
 
-`footer_layout` 只接受以上 12 个 id。行宽不足时先压缩 `cwd_path` 和 `native_footer`，再从尾部逐段省略，不会清空整行。
+`footer_layout` 只接受以上 13 个 id。行宽不足时先压缩 `cwd_path` 和 `native_footer`，再从尾部逐段省略，不会清空整行。
+
+### MCP server
+
+`mcp` 统计 `mcp.json` 里配置的 server：Pi agent 目录下的用户级文件，以及项目受信后的 `.pi/mcp.json`。同名条目以项目为准；写 `"enabled": false` 的条目计入配置数但不计入启用数；文件缺失或格式错误按 0 计。
+
+全部启用时显示 `MCP 3`，有禁用时显示 `MCP 2/3`，一个都没配置时该段省略。数字来自配置文件而非运行中的连接：配置了但连接失败的 server 依然计数，`mcp` 不代表连接状态。
 
 ### 控制原生状态
 
