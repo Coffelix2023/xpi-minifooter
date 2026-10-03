@@ -63,6 +63,8 @@ footer_layout:
     items: [git_branch, cwd_path, model_name, thinking_mode]
   - separator: slash
     items: [context_bar, tokens, cost, session_time]
+# `mcp` 与其他参数一样需要显式加入：把它写进任意一行即可统计 mcp.json 里配置的
+# MCP server（见下文「MCP server」），例如 `[context_bar, tokens, mcp]`。
 
 # 原生扩展状态的额外行。`max` 限制该行最多显示几个状态（1-5）；
 # 省略 `max` 表示剩余状态全部放进该行。

@@ -63,6 +63,8 @@ footer_layout:
     items: [git_branch, cwd_path, model_name, thinking_mode]
   - separator: slash
     items: [context_bar, tokens, cost, session_time]
+# `mcp` is opt-in like every parameter: add it to any row to count the servers
+# configured in mcp.json (see "MCP servers" below), for example `[context_bar, tokens, mcp]`.
 
 # Extra rows for native extension statuses. `max` caps how many statuses this
 # row shows (1-5); omit `max` to put every remaining status in the row.
