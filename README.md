@@ -141,6 +141,8 @@ Native status text is rendered in the muted color regardless of any color the or
 
 This repository loads TypeScript directly; there is no `dist/` build. With the pinned tools from `mise.toml`:
 
+The pinned dev baseline is Node 24 / pnpm 12 (`mise.toml`) with TypeScript 7 / Vitest 5 / Biome 2 (`package.json`); none of it ships at runtime.
+
 ```bash
 mise install
 pnpm install

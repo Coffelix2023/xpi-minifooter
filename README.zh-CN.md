@@ -141,6 +141,8 @@ xpi-minifooter: invalid minifooter.yml: invalid configuration values: /native_fo
 
 仓库直接加载 TypeScript，不生成 `dist/`。使用 `mise.toml` 中锁定的工具版本：
 
+锁定的开发基线是 Node 24 / pnpm 12（`mise.toml`）与 TypeScript 7 / Vitest 5 / Biome 2（`package.json`），它们都不参与运行时。
+
 ```bash
 mise install
 pnpm install
