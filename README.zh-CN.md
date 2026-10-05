@@ -22,11 +22,11 @@ ln -s "$(pwd)" ~/.pi/agent/extensions/xpi-minifooter
 
 ### 兼容性
 
-针对 Pi **1.0.0** 开发与类型检查（`@earendil-works/pi-coding-agent` 与 `@earendil-works/pi-tui`）。Pi 为扩展自带这些核心包，因此扩展把它们声明为 `peerDependencies: "*"`、绝不打包自备副本：运行时 API 由当前 Pi 提供，devDependencies 的版本只决定类型检查看到哪一份 `.d.ts`。
+针对 Pi **1.0.2** 开发与类型检查（`@earendil-works/pi-coding-agent` 与 `@earendil-works/pi-tui`）。Pi 为扩展自带这些核心包，因此扩展把它们声明为 `peerDependencies: "*"`、绝不打包自备副本：运行时 API 由当前 Pi 提供，devDependencies 的版本只决定类型检查看到哪一份 `.d.ts`。
 
-0.88–1.0 各版本也没有需要改代码的地方：扩展只注册 `session_start`、`agent_start`、`agent_settled`、`session_shutdown` 四个事件，也不对 `SessionEntry` 或 `ExtensionEvent` 做穷尽 switch。Pi 1.0.0 的 TUI 默认全屏（`tuiMode: "regular"` 可恢复回滚缓冲），MCP 支持改为内置扩展并从 `mcp.json` 读取。
+0.88–1.0.2 各版本也没有需要改代码的地方：扩展只注册 `session_start`、`agent_start`、`agent_settled`、`session_shutdown` 四个事件，也不对 `SessionEntry` 或 `ExtensionEvent` 做穷尽 switch。Pi 1.0.x 的 TUI 默认全屏（`tuiMode: "regular"` 可恢复回滚缓冲），MCP 支持改为内置扩展并从 `mcp.json` 读取。
 
-Pi 1.0.0 有两个能力本扩展刻意尚未使用，都属于可选：
+Pi 1.0.x 有两个能力本扩展刻意尚未使用，都属于可选：
 
 - **编辑器边框钩子**：自定义编辑器直接改写首行与末行渲染结果，因此编辑器滚动时 Pi 的 `↑ N more` 溢出标记会被边框槽位覆盖。改覆写 `renderTopBorder` / `renderBottomBorder` 可以两者兼得。
 - **`embedWorkingStatus`**：自定义编辑器默认保留独立的 working/compaction/重试行，把 spinner 嵌进边框是 opt-in，本扩展未启用。

@@ -22,11 +22,11 @@ ln -s "$(pwd)" ~/.pi/agent/extensions/xpi-minifooter
 
 ### Compatibility
 
-Built and type-checked against Pi **1.0.0** (`@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui`). Pi bundles the core packages for extensions, so the extension declares them as `peerDependencies: "*"` and never bundles its own copy: the running Pi provides the API, and the pinned devDependencies only decide which `.d.ts` the type check sees.
+Built and type-checked against Pi **1.0.2** (`@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui`). Pi bundles the core packages for extensions, so the extension declares them as `peerDependencies: "*"` and never bundles its own copy: the running Pi provides the API, and the pinned devDependencies only decide which `.d.ts` the type check sees.
 
-No code change was needed for the 0.88–1.0 releases either: the extension registers only `session_start`, `agent_start`, `agent_settled`, and `session_shutdown`, and never switches exhaustively over `SessionEntry` or `ExtensionEvent`. Pi 1.0.0 runs the TUI fullscreen by default (`tuiMode: "regular"` restores scrollback) and ships MCP as built-in extensions reading `mcp.json`.
+No code change was needed for the 0.88–1.0.2 releases either: the extension registers only `session_start`, `agent_start`, `agent_settled`, and `session_shutdown`, and never switches exhaustively over `SessionEntry` or `ExtensionEvent`. Pi 1.0.x runs the TUI fullscreen by default (`tuiMode: "regular"` restores scrollback) and ships MCP as built-in extensions reading `mcp.json`.
 
-Two behaviours of Pi 1.0.0 are deliberately not used yet, and both are optional:
+Two behaviours of Pi 1.0.x are deliberately not used yet, and both are optional:
 
 - **Editor border hooks**: the custom editor rewrites its first and last rendered rows, so Pi's `↑ N more` overflow marker on a scrolled editor is replaced by the border slots. Overriding `renderTopBorder` / `renderBottomBorder` would preserve both.
 - **`embedWorkingStatus`**: custom editors keep the standalone working/compaction/retry rows by default. The border-embedded spinners are opt-in and are not enabled here.
